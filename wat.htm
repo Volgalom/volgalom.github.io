@@ -1,0 +1,181 @@
+﻿<!DOCTYPE HTML>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Wega Auto Tetris</title>
+    <script type="text/javascript" src="js/mootools-core-1.4.5-class_only.js"></script>
+    <script type="text/javascript" src="js/seedrandom.js"></script>
+    <script type="text/javascript" src="js/wat.js"></script>
+    <script type="text/javascript">
+
+        var paramsList = ["cellSize", "fieldCols", "fieldRows", "gameCycleDelay", "gameType", "nextFigures", "fixedFigureNum", "gameAutoMode", "randomSeed"];
+
+        function getGetParams() {
+            var params = window.location.search.substr(1).split("&");
+            var resultParams = {};
+            params.forEach( function(param) {
+                var v = param.split("=");
+                resultParams[v[0]] = v[1];
+            });
+            return resultParams;
+        }
+
+        function setParamsToForm() {
+            var getParams = getGetParams();
+            paramsList.forEach( function(param) {
+                var value = getParams[param];
+                if (value) {
+                    document.getElementById(param).value = value;
+                }
+            });
+        }
+
+        function copyGameUrlWithParams() {
+            var url = window.location.href.split("?")[0] + "?";
+            paramsList.forEach( function(param) {               
+                value = document.getElementById(param).value;
+                url += param + "=" + value + "&";
+            });
+            url = url.substring(0, url.length - 1);
+            window.prompt ("Copy to clipboard: Ctrl+C, Enter", url);
+        }
+
+        var wat;
+        function go() {
+            if (wat != null)
+                wat.stop();
+            wat = new WatGame({
+                fieldCanvasID: "fieldCanvas",
+                nextFigureCanvasID: "nextFigureCanvas",
+                nextFigureBorderColor: "darkgreen",
+                nextFigureBackgroundColor: "#202020",
+                fieldBackgroundColor: "#202020",
+                fieldLinesColor: "#303030",
+                cellSize: parseInt(document.getElementById("cellSize").value),
+                fieldCols: parseInt(document.getElementById("fieldCols").value),
+                fieldRows: parseInt(document.getElementById("fieldRows").value),
+                gameCycleDelay: parseInt(document.getElementById("gameCycleDelay").value),
+                gameType: document.getElementById("gameType").value,
+                nextFigures: document.getElementById("nextFigures").value,
+                fixedFigureNum: parseInt(document.getElementById("fixedFigureNum").value),
+                randomSeed: document.getElementById("randomSeed").value,
+                gameAutoMode: document.getElementById("gameAutoMode").value == "1" ? true : false,
+                onChangeGameAutoMode: function(gameAutoMode) {
+                    document.getElementById("gameAutoMode").value = gameAutoMode ? "1" : "0";
+                },
+                onGameOver: function() {
+                    alert("GAME OVER!");
+                    wat.stop();
+                } 
+            });
+            wat.run();
+            document.onkeydown = wat.onKeyDown;
+            document.getElementById("fieldCanvas").onclick = wat.xorCellOnFieldCanvasClick;
+            document.getElementById("applyAndRestart").blur();
+        }
+
+        window.onload = function() {
+            setParamsToForm();
+            go();
+        };
+    </script>
+</head>
+<body style="background-color:#102020; color:#E0E0E0;">
+    <div style="text-align:center; vertical-align:center;">
+        <h1 style="margin:0; margin-top:20px;">Wega Auto Tetris On Canvas v0.54b</h1>
+    </div>
+    <form>
+    <table align="center" style="margin-top:30px;">
+        <tr>
+            <td style="vertical-align:top; padding-right:20px;">
+                <table>
+                    <tr>
+                        <td>Cell size:</td>
+                        <td><input id="cellSize" type="number" value="18" style="width:5em;" /></td>
+                    </tr>
+                    <tr>
+                        <td>Cols:</td>
+                        <td><input id="fieldCols" type="number" value="10" style="width:5em;" /></td>
+                    </tr>
+                    <tr>
+                        <td>Rows:</td>
+                        <td><input id="fieldRows" type="number" value="20" style="width:5em;" /></td>
+                    </tr>
+                    <tr>
+                        <td>Delay:</td>
+                        <td><input id="gameCycleDelay" type="number" value="50" style="width:5em;" /></td>
+                    </tr>
+                    <tr>
+                        <td>Game type:</td>
+                        <td>
+                            <select id="gameType">
+                                <option value="1">Classic</option>
+                                <option value="2">Advanced</option>
+                                <option value="3">Extra</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Next figures:</td>
+                        <td><input id="nextFigures" value="" style="width:5em;" /></td>
+                    </tr>
+                    <tr>
+                        <td>Fixed figure:</td>
+                        <td>
+                            <select id="fixedFigureNum">
+                                <option value="">Random</option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                                <option value="11">11</option>
+                                <option value="12">12</option>
+                                <option value="13">13</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Random seed:</td>
+                        <td><input id="randomSeed" value="" style="width:5em;" /></td>
+                    </tr>
+                </table>
+                <div style="text-align:center; margin-top:20px">
+                    <input id="gameAutoMode" type="hidden" value="1" />
+                    <input type="reset" value="Reset" />
+                    <input type="button" id="applyAndRestart" value="Apply & restart" onclick="go();" /> <br/>
+                    <input type="button" value="Get game url with params" style="margin-top:20px;" onclick="copyGameUrlWithParams();"/>
+                </div>
+            </td>
+            <td style="text-align:right; vertical-align:top;">
+                <canvas id="fieldCanvas">Sorry, canvas not supported in your browser!</canvas>
+            </td>
+            <td style="text-align:left; vertical-align:top;">
+                <canvas id="nextFigureCanvas"></canvas><br/>
+                <div>
+                    Figures:&nbsp;<span id="figures">0</span><br/>
+                    Score:&nbsp;<span id="score">0</span><br/>
+                    Lines:&nbsp;<span id="delLines">0</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+    </form>
+    <div style="text-align:center; margin-top:20px;">
+        Press ENTER for toggle manual/auto mode.<br/>
+        Use cursor and SPACE keys in manual mode for control.<br/>
+        Click mouse on field for drawing.<br/>
+        Press ESC for pause.
+    </div>
+    <div style="text-align:center; margin-top:30px;">
+        <div style="font-size:80%">(c) 2013 <a href="mailto:wega@hotbox.ru" style="color:#A0E0A0">Georgy 'Wega' Lomsadze</a></div>
+        <div style="font-size:70%">Used <a href="http://mootools.net/" style="color:#A0E0A0">MooTools javascript framework</a></div>
+        <div style="font-size:70%">Used <a href="http://davidbau.com/archives/2010/01/30/random_seeds_coded_hints_and_quintillions.html" style="color:#A0E0A0">seedrandom.js by David Bau</a></div>
+    </div>
+</body>
+</html>

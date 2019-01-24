@@ -1,0 +1,139 @@
+﻿<!DOCTYPE HTML>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Wega Auto Tetris</title>
+    <script type="text/javascript" src="js/mootools-core-1.4.5-class_only.js"></script>
+    <script type="text/javascript" src="js/seedrandom.js"></script>
+    <script type="text/javascript" src="js/wat.js"></script>
+    <script type="text/javascript">
+        function getAIFiguresCount() {
+            var aiFiguresElm = document.getElementById("aiFigures");
+            var aiFigures = aiFiguresElm.innerText || aiFiguresElm.textContent;
+            return parseInt(aiFigures);
+        }
+        function getHumanFiguresCount() {
+            var humanFiguresElm = document.getElementById("humanFigures");
+            var humanFigures =  humanFiguresElm.innerText || humanFiguresElm.textContent;
+            return parseInt(humanFigures);
+        }
+        function go() {
+            Math.seedrandom();          
+            var randomSeed = Math.random();
+            var aiWat;
+            var humanWat;
+            var aiGameOver = false;
+            var humanGameOver = false;
+            aiWat = new WatGame({
+                fieldCanvasID: "aiFieldCanvas",
+                figuresElmID: "aiFigures",
+                scoreElmID: "aiScore",
+                delLinesCountElmID: "aiDelLines",
+                cellSize: 18,
+                randomSeed: randomSeed,
+                gameAutoMode: true,
+                allowSwitchAutoMode: true,
+                fieldBorderWidth: 2,
+                fieldBorderAutoModeColor: "#800020",
+                nextFigureBorderWidth: 2,
+                nextFigureBorderColor: "#808020",
+                fieldBackgroundColor: "#202020",
+                fieldLinesColor: "#303030",
+                nextFigureBackgroundColor: "#202020",
+                onGameOver: function() {
+                    aiWat.stop();
+                },
+                onNewFigure: function() {
+                    var aiFigures = getAIFiguresCount();
+                    var humanFigures =  getHumanFiguresCount();
+                    if (aiWat && !humanGameOver && aiFigures >= humanFigures) {
+                        aiWat.stop();
+                    }
+                },
+                onGameOver: function() {
+                    aiGameOver = true;
+                }
+            });
+            aiWat.run();
+            humanWat = new WatGame({
+                fieldCanvasID: "humanFieldCanvas",
+                figuresElmID: "humanFigures",
+                nextFigureCanvasID: "humanNextFigureCanvas",
+                scoreElmID: "humanScore",
+                delLinesCountElmID: "humanDelLines",
+                cellSize: 18,
+                randomSeed: randomSeed,
+                gameAutoMode: false,
+                allowSwitchAutoMode: false,
+                fieldBorderWidth: 2,
+                fieldBorderManualModeColor: "#202080",
+                nextFigureBorderWidth: 2,
+                nextFigureBorderColor: "#802080",
+                fieldBackgroundColor: "#202020",
+                fieldLinesColor: "#303030",
+                nextFigureBackgroundColor: "#202020",
+                onGameOver: function() {
+                    humanWat.stop();
+                },
+                onNewFigure: function() {
+                    if (!aiGameOver) {
+                        aiWat.run();
+                    }
+                },
+                onGameOver: function() {
+                    humanGameOver = true;
+                }
+            });
+            document.onkeydown = humanWat.onKeyDown;
+            humanWat.run();
+            window.focus();
+        }
+
+        window.onload = function() {
+            go();
+        };
+    </script>
+</head>
+<body style="background-color:#102020; color:#E0E0E0;">
+    <div style="text-align:center; vertical-align:center;">
+        <h1 style="margin:0; margin-top:20px;">Wega Auto Tetris On Canvas v0.55b: Human vs AI</h1>
+    </div>
+    <table style="margin-top:30px; margin-left:auto; margin-right:auto;">
+        <tr>
+            <td>
+            </td>
+            <td>
+                <canvas id="aiFieldCanvas">Sorry, canvas not supported in your browser!</canvas>
+            </td>
+            <td style="vertical-align:top; width:110px">
+                <div style="text-align:center">
+                    <canvas id="humanNextFigureCanvas"></canvas>
+                </div>
+                <div style="color:#F04040; margin-top:20px;">
+                    <h3 style="margin:0">AI</h3>
+                    Figures:&nbsp;<span id="aiFigures">0</span><br/>
+                    Score:&nbsp;<span id="aiScore">0</span><br/>
+                    Lines:&nbsp;<span id="aiDelLines">0</span>
+                </div>
+                <div style="color:#4040F0; margin-top:20px; text-align:right;">
+                    <h3 style="margin:0">Human</h3>
+                    Figures:&nbsp;<span id="humanFigures">0</span><br/>
+                    Score:&nbsp;<span id="humanScore">0</span><br/>
+                    Lines:&nbsp;<span id="humanDelLines">0</span>
+                </div>
+            </td>
+            <td>
+                <canvas id="humanFieldCanvas">Sorry, canvas not supported in your browser!</canvas>
+            </td>
+        </tr>
+    </table>
+    <div style="text-align:center; margin-top:20px;">
+        Use cursor and SPACE keys for control.<br/>
+        Press ESC for pause.
+    </div>
+    <div style="text-align:center; margin-top:30px;">
+        <div style="font-size:80%">(c) 2013 <a href="mailto:wega@hotbox.ru" style="color:#A0E0A0">Georgy 'Wega' Lomsadze</a></div>
+        <div style="font-size:70%">Used <a href="http://mootools.net/" style="color:#A0E0A0">MooTools javascript framework</a></div>
+        <div style="font-size:70%">Used <a href="http://davidbau.com/archives/2010/01/30/random_seeds_coded_hints_and_quintillions.html" style="color:#A0E0A0">seedrandom.js by David Bau</a></div>
+    </div>
+</body>
+</html>
