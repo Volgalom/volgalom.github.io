@@ -63,15 +63,8 @@
             flex-shrink: 0;
         }
         
-        .level-label { 
-            color: #bdc3c7; 
-            font-size: inherit;
-        }
-        
-        .level-val { 
-            color: var(--wire-on); 
-            font-size: inherit;
-        }
+        .level-label { color: #bdc3c7; font-size: inherit; }
+        .level-val { color: var(--wire-on); font-size: inherit; }
 
         #game-container {
             position: relative;
@@ -95,9 +88,7 @@
             z-index: 20;
         }
 
-        #game-stage {
-            position: relative;
-        }
+        #game-stage { position: relative; }
 
         #glow-layer {
             position: absolute; inset: 0; pointer-events: none; z-index: 0;
@@ -105,39 +96,21 @@
         }
 
         #grid-lines {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            z-index: 1;
+            position: absolute; inset: 0; pointer-events: none; z-index: 1;
             background-image: 
                 linear-gradient(var(--grid-line) 1px, transparent 1px),
                 linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        #fx-canvas {
-            position: absolute; inset: 0; pointer-events: none; z-index: 15;
-        }
+        #fx-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
 
         #grid { 
-            display: grid; 
-            gap: 0; 
-            position: relative; 
-            z-index: 5;
+            display: grid; gap: 0; position: relative; z-index: 5;
         }
 
-        .cell {
-            position: relative;
-            cursor: pointer;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .cell svg { 
-            display: block; 
-            overflow: visible; 
-            width: 100%; 
-            height: 100%; 
-        }
+        .cell { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .cell svg { display: block; overflow: visible; width: 100%; height: 100%; }
 
         .tile-inner {
             width: 100%; height: 100%;
@@ -148,19 +121,14 @@
         path, rect, circle, line { transition: stroke 0.1s, filter 0.1s, fill 0.1s; }
 
         .wire-bg { 
-            fill: none;
-            stroke: var(--panel-bg);
-            stroke-width: 24; 
-            stroke-linecap: butt;
+            fill: none; stroke: var(--panel-bg); stroke-width: 24; stroke-linecap: butt;
         }
         .wire-path { 
-            fill: none;
-            stroke: var(--wire-off); 
-            stroke-width: 12; 
-            stroke-linecap: round; 
+            fill: none; stroke: var(--wire-off); stroke-width: 12; stroke-linecap: round; 
         }
         .cap-butt { stroke-linecap: butt; }
 
+        /* Раздельная подсветка для перекрестных групп */
         .pg-0 .wire-group-0 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         .pg-1 .wire-group-1 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         
@@ -169,12 +137,9 @@
 
         @keyframes flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -25; } }
 
-        .level-complete .pg-0 .wire-group-0, 
-        .level-complete .pg-1 .wire-group-1 {
-            stroke-dasharray: 20 5; 
-            animation: flow 0.5s linear infinite;
-            animation-direction: normal;
-        }
+        .level-complete .pg-0 .wire-group-0 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
+        .level-complete .pg-1 .wire-group-1 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
+
         .level-complete .cell[class*="in-g0-0"] .wire-group-0.wire-0,
         .level-complete .cell[class*="in-g0-1"] .wire-group-0.wire-1,
         .level-complete .cell[class*="in-g0-2"] .wire-group-0.wire-2,
@@ -202,6 +167,18 @@
         @keyframes glowPulse { 0%, 100% { filter: drop-shadow(0 0 6px var(--bulb-color)); fill-opacity: 0.6; } 50% { filter: drop-shadow(0 0 15px var(--bulb-color)); fill-opacity: 0.9; } }
         @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
 
+        .pg-0 .bulb-glass, .pg-1 .bulb-glass { 
+            fill: var(--bulb-color); stroke: #fff; 
+            animation: glowPulse 2.5s ease-in-out infinite; 
+            animation-delay: calc(var(--dist) * 0.1s); 
+        }
+        .pg-0 .bulb-filament, .pg-1 .bulb-filament { stroke: #fff; stroke-width: 2; }
+        
+        .sc-0 .bulb-glass { fill: #300; stroke: #500; }
+        .level-complete .pg-0 .bulb-glass, .level-complete .pg-1 .bulb-glass { 
+            animation: partyBlink 0.6s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.08s); 
+        }
+
         #overlay {
             position: absolute; inset: -20px; 
             background: rgba(0,0,0,0.3);
@@ -224,7 +201,6 @@
         }
         #overlay button:active { transform: scale(0.95); }
 
-        /* Скрытый блок отладки. Поменяйте display: none на display: flex, чтобы включить */
         #debug-btn {
             position: fixed; bottom: 20px; right: 20px;
             display: none; 
@@ -240,13 +216,6 @@
         .cell { animation: popIn 0.3s backwards; }
         @keyframes shake { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } }
         .shaking { animation: shake 0.4s; }
-
-        #msg-error {
-            position: absolute; bottom: -30px; width: 100%; text-align: center;
-            color: #e74c3c; font-size: 1rem; font-weight: bold;
-            opacity: 0; transition: opacity 0.1s; text-shadow: 0 0 10px red; height: 20px;
-        }
-        #msg-error.visible { opacity: 1; }
 
         @media (max-width: 600px) {
             #game-container { padding: 10px; }
@@ -275,7 +244,6 @@
                     <button onclick="window.game.nextLevel()">Next</button>
                 </div>
             </div>
-            <div id="msg-error">SHORT CIRCUIT!</div>
         </div>
     </div>
     
@@ -408,8 +376,10 @@ class LevelGenerator {
     generate(w, h, n, level) {
         let map = Array(h).fill().map(()=>Array(w).fill().map(()=>({mask:0,type:TILES.EMPTY,nid:-1,bridge:false,dcorner:false})));
         let globalVisited = new Set();
-        const allowBridge = level >= 10;
-        const allowDCorner = level >= 15;
+        
+        const allowBridge = level >= 10; 
+        const allowDCorner = level >= 20;
+        
         let networks = [];
         for (let i = 0; i < n; i++) {
             let startX, startY, attempts=0;
@@ -467,15 +437,13 @@ class LevelGenerator {
                         }
                     }
                 }
-                if(neighbors.length) {
-                    let next = neighbors[Math.floor(Math.random()*neighbors.length)];
-                    if(next.type==='normal') {
-                        map[curr.y][curr.x].mask |= this.bits[next.d];
-                        map[next.y][next.x].mask |= this.opp[next.d];
-                        map[next.y][next.x].nid = net.id;
-                        globalVisited.add(`${next.x},${next.y}`);
-                        net.stack.push({x:next.x, y:next.y});
-                    } else if (next.type==='bridge') {
+
+                let special = neighbors.filter(n => n.type !== 'normal');
+                let normals = neighbors.filter(n => n.type === 'normal');
+                
+                if(special.length > 0) {
+                    let next = special[Math.floor(Math.random() * special.length)];
+                    if (next.type==='bridge') {
                         map[curr.y][curr.x].mask |= this.bits[next.d];
                         map[next.midY][next.midX].mask |= (this.opp[next.d] | this.bits[next.d]);
                         map[next.midY][next.midX].bridge = true;
@@ -494,7 +462,24 @@ class LevelGenerator {
                         globalVisited.add(`${next.x},${next.y}`);
                         net.stack.push({x:next.x, y:next.y});
                     }
-                } else {
+                } 
+                else if(normals.length > 0) {
+                    normals.sort(() => Math.random() - 0.5);
+                    let branches = 1;
+                    if (Math.random() < 0.2) {
+                        branches = Math.min(normals.length, 3);
+                        if(branches > 1 && Math.random() < 0.5) branches = 2;
+                    }
+                    let taken = normals.slice(0, branches);
+                    taken.forEach(next => {
+                        map[curr.y][curr.x].mask |= this.bits[next.d];
+                        map[next.y][next.x].mask |= this.opp[next.d];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    });
+                } 
+                else {
                     net.stack.pop();
                 }
             }
@@ -554,12 +539,13 @@ class Game {
         this.el=document.getElementById('grid');
         this.gridLines=document.getElementById('grid-lines');
         this.ov=document.getElementById('overlay');
-        this.err=document.getElementById('msg-error');
+        // this.err removed
         this.cnt=document.getElementById('game-container');
         this.stage = document.getElementById('game-stage');
         this.gen=new LevelGenerator();
         this.audio = new SoundSystem();
         this.vfx = new VisualFX();
+        this.inputLocked = false;
         this.lvl=1; this.start();
     }
     start() {
@@ -567,6 +553,8 @@ class Game {
         this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
         let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
         
+        this.inputLocked = false;
+
         const headerEl = document.getElementById('game-header-stats');
         const headerH = headerEl.offsetHeight || 50;
         
@@ -635,15 +623,21 @@ class Game {
         };
 
         if(t===TILES.BRIDGE) {
-            addPath("M 50 0 L 50 100", 0, "0 wire-2", true); 
-            bg += `<path d="M 0 50 L 100 50" class="wire-bg cap-butt" />`; 
-            addPath("M 0 50 L 100 50", 1, "1 wire-3", true); 
+            // 1. Vertical wire (Group 0)
+            bg += `<path d="M 50 -2 L 50 102" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 -2 L 50 102" class="wire-path wire-group-0 wire-2 wire-0 cap-butt" />`;
+
+            // 2. Horizontal wire (Group 1) with "Hop"
+            const hopPath = "M -2 50 L 30 50 C 30 15 70 15 70 50 L 102 50";
+            
+            fg += `<path d="${hopPath}" class="wire-bg cap-butt" />`;
+            fg += `<path d="${hopPath}" class="wire-path wire-group-1 wire-3 wire-1 cap-butt" />`;
         } 
         else if(t===TILES.D_CORNER) {
-            bg += `<path d="M 50 0 Q 50 50 0 50" class="wire-bg cap-butt" />`;
-            fg += `<path d="M 50 0 Q 50 50 0 50" class="wire-path wire-group-0 wire-0 wire-3 cap-butt" />`;
-            bg += `<path d="M 50 100 Q 50 50 100 50" class="wire-bg cap-butt" />`;
-            fg += `<path d="M 50 100 Q 50 50 100 50" class="wire-path wire-group-1 wire-2 wire-1 cap-butt" />`;
+            bg += `<path d="M 50 -2 Q 50 50 -2 50" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 -2 Q 50 50 -2 50" class="wire-path wire-group-0 wire-0 wire-3 cap-butt" />`;
+            bg += `<path d="M 50 102 Q 50 50 102 50" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 102 Q 50 50 102 50" class="wire-path wire-group-1 wire-2 wire-1 cap-butt" />`;
         }
         else if(t===TILES.CORNER) {
             let p1=-1, p2=-1;
@@ -658,32 +652,22 @@ class Game {
             const isBL = (p1===2 && p2===3) || (p1===3 && p2===2);
             const isLT = (p1===3 && p2===0) || (p1===0 && p2===3);
 
-            if(isTR) dStr = `M 50 0 L 50 ${C-R} Q 50 50 ${C+R} 50 L 100 50`;
-            else if(isRB) dStr = `M 100 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 100`;
-            else if(isBL) dStr = `M 50 100 L 50 ${C+R} Q 50 50 ${C-R} 50 L 0 50`;
-            else if(isLT) dStr = `M 0 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 0`;
+            if(isTR) dStr = `M 50 -2 L 50 ${C-R} Q 50 50 ${C+R} 50 L 102 50`;
+            else if(isRB) dStr = `M 102 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 102`;
+            else if(isBL) dStr = `M 50 102 L 50 ${C+R} Q 50 50 ${C-R} 50 L -2 50`;
+            else if(isLT) dStr = `M -2 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 -2`;
 
             bg += `<path d="${dStr}" class="wire-bg cap-butt" />`;
             fg += `<path d="${dStr}" class="wire-path wire-group-0 wire-${p1} wire-${p2} cap-butt" />`;
         }
-        else {
-            if(c[0]) addPath("M 50 50 L 50 0", 0, "0", true);
-            if(c[1]) addPath("M 50 50 L 100 50", 0, "1", true);
-            if(c[2]) addPath("M 50 50 L 50 100", 0, "2", true);
-            if(c[3]) addPath("M 50 50 L 0 50", 0, "3", true);
-            
-            if(t!==TILES.EMPTY && t!==TILES.LINE && t!==TILES.CORNER && t!==TILES.BULB) {
-                bg += `<circle cx="50" cy="50" r="7" class="wire-bg" fill="none" stroke-width="18"/>`;
-                fg += `<circle cx="50" cy="50" r="7" class="wire-path wire-group-0" fill="currentColor" stroke="none"/>`;
-            }
-        }
-
-        if(t===TILES.BATTERY) {
+        else if(t===TILES.BATTERY) {
             fg += `<rect x="32" y="20" width="36" height="60" rx="3" class="bat-case" />
                    <rect x="42" y="14" width="16" height="6" rx="1" class="bat-tip" />
                    <polygon points="55,35 42,50 50,50 45,65 58,50 50,50" class="bat-icon" />`;
-            addPath("M 50 14 L 50 0", 0, "0", true);
-        } else if(t===TILES.BULB) {
+            addPath("M 50 14 L 50 -2", 0, "0", true);
+        } 
+        else if(t===TILES.BULB) {
+            addPath("M 50 102 L 50 75", 0, "2", true);
             fg += `<g transform="translate(12.5, 7.5) scale(0.75)" style="--bulb-color: ${d.color}">
                     <path d="M 45 75 L 45 55 L 50 45 L 55 55 L 55 75" class="bulb-filament" />
                     <path d="M 40 75 Q 15 75 15 45 A 20 20 0 1 1 85 45 Q 85 75 60 75 Z" class="bulb-glass" />
@@ -692,13 +676,23 @@ class Game {
                     <line x1="38" y1="86" x2="62" y2="86" class="bulb-thread" />
                     <path d="M 44 91 L 56 91 L 50 96 Z" fill="#555" />
                    </g>`;
-            bg += `<path d="M 50 100 L 50 75" class="wire-bg" />`;
-            fg += `<path d="M 50 100 L 50 75" class="wire-path wire-group-0 wire-2" />`;
         }
+        else {
+            if(c[0]) addPath("M 50 50 L 50 -2", 0, "0", true);
+            if(c[1]) addPath("M 50 50 L 102 50", 0, "1", true);
+            if(c[2]) addPath("M 50 50 L 50 102", 0, "2", true);
+            if(c[3]) addPath("M 50 50 L -2 50", 0, "3", true);
+            
+            if(t!==TILES.EMPTY && t!==TILES.LINE) {
+                bg += `<circle cx="50" cy="50" r="7" class="wire-bg" fill="none" stroke-width="18"/>`;
+                fg += `<circle cx="50" cy="50" r="7" class="wire-path wire-group-0" fill="currentColor" stroke="none"/>`;
+            }
+        }
+
         return `<svg viewBox="0 0 100 100" width="100%" height="100%">${bg}${fg}</svg>`;
     }
     rot(c, e) {
-        if(this.ov.classList.contains('visible')) return;
+        if(this.inputLocked || this.ov.classList.contains('visible')) return;
         this.audio.init(); this.audio.play('rotate');
         c.vRot++; c.inEl.style.transform=`rotate(${c.vRot*90}deg)`;
         const cx = c.x * this.vfx.cellSize + this.vfx.cellSize/2;
@@ -828,8 +822,9 @@ class Game {
             if(lit>this.prevLit) this.audio.play('on'); else if(lit<this.prevLit) this.audio.play('off');
         }
         this.short=short; this.prevLit=lit;
-        this.err.classList.toggle('visible', short);
+        
         if(lit===bulbs && bulbs>0 && !short){
+            this.inputLocked = true;
             setTimeout(()=>{ 
                 this.audio.play('on'); this.haptic('win');
                 this.ov.classList.add('visible'); this.el.classList.add('level-complete');
