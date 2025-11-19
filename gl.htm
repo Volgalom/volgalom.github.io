@@ -24,20 +24,17 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* Используем dvh для корректной работы с адресной строкой мобильных браузеров */
             height: 100dvh;
             margin: 0;
             overflow: hidden;
             user-select: none;
             -webkit-user-select: none;
-            /* Безопасные отступы (например, для iPhone с "челкой") */
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
             padding-left: 10px;
             padding-right: 10px;
         }
 
-        /* Контейнер игры */
         #game-wrapper {
             display: flex;
             flex-direction: column;
@@ -55,17 +52,15 @@
             justify-content: center;
             align-items: center;
             gap: 10px;
-            /* Уменьшен отступ снизу */
             padding-bottom: 0px; 
             margin-bottom: 5px; 
-            
             font-size: 2rem; 
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 1px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             z-index: 10;
-            flex-shrink: 0; /* Запрещаем сжимать заголовок */
+            flex-shrink: 0;
         }
         
         .level-label { 
@@ -87,7 +82,6 @@
             padding: 15px;
             transition: width 0.2s, height 0.2s;
             margin: 0 auto; 
-            /* Гарантируем, что контейнер не вылезет за пределы гибкого блока */
             flex-shrink: 1; 
         }
         
@@ -103,7 +97,6 @@
 
         #game-stage {
             position: relative;
-            /* Размеры задаются в JS */
         }
 
         #glow-layer {
@@ -209,11 +202,6 @@
         @keyframes glowPulse { 0%, 100% { filter: drop-shadow(0 0 6px var(--bulb-color)); fill-opacity: 0.6; } 50% { filter: drop-shadow(0 0 15px var(--bulb-color)); fill-opacity: 0.9; } }
         @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
 
-        .pg-0 .bulb-glass { fill: var(--bulb-color); stroke: #fff; animation: glowPulse 2.5s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.1s); }
-        .pg-0 .bulb-filament { stroke: #fff; stroke-width: 2; }
-        .sc-0 .bulb-glass { fill: #300; stroke: #500; }
-        .level-complete .pg-0 .bulb-glass { animation: partyBlink 0.6s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.08s); }
-
         #overlay {
             position: absolute; inset: -20px; 
             background: rgba(0,0,0,0.3);
@@ -236,9 +224,11 @@
         }
         #overlay button:active { transform: scale(0.95); }
 
+        /* Скрытый блок отладки. Поменяйте display: none на display: flex, чтобы включить */
         #debug-btn {
             position: fixed; bottom: 20px; right: 20px;
-            display: flex; gap: 10px; z-index: 100;
+            display: none; 
+            gap: 10px; z-index: 100;
         }
         .dbg {
             background: #34495e; color: #bdc3c7; font-size: 0.8rem; padding: 8px 12px;
@@ -269,7 +259,6 @@
 <body>
 
     <div id="game-wrapper">
-        <!-- Заголовок уровня -->
         <div id="game-header-stats">
             <span class="level-label">Level:</span>
             <span class="level-val" id="level-display">1</span>
@@ -578,16 +567,13 @@ class Game {
         this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
         let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
         
-        // Улучшенный расчет свободного места
         const headerEl = document.getElementById('game-header-stats');
         const headerH = headerEl.offsetHeight || 50;
         
-        // Отступы вокруг
         const margin = 20; 
-        const safeArea = 20; // Дополнительный запас снизу
+        const safeArea = 20; 
         
         const availW = Math.min(window.innerWidth, 800) - (margin*2);
-        // window.innerHeight уже включает UI, поэтому отнимаем высоту хедера и отступы с запасом
         const availH = window.innerHeight - headerH - (margin * 2) - safeArea;
         
         const cs = Math.min(Math.floor(availW / this.w), Math.floor(availH / this.h), 80);
@@ -604,7 +590,6 @@ class Game {
         this.el.style.gridTemplateRows = `repeat(${this.h}, ${cs}px)`;
         this.el.style.backgroundSize = `${cs}px ${cs}px`;
 
-        // Update grid lines to match
         this.gridLines.style.backgroundSize = `${cs}px ${cs}px`;
 
         this.vfx.resize(this.w*cs, this.h*cs, cs);
