@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gimme Light!</title>
+    <style>
+        :root {
+            --bg-color: #10151b;
+            --panel-bg: #151d29;
+            --wire-off: #546e7a;
+            --wire-on: #f1c40f;
+            --wire-short: #e74c3c;
+            --grid-line: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-color);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Используем dvh для корректной работы с адресной строкой мобильных браузеров */
+            height: 100dvh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            /* Безопасные отступы (например, для iPhone с "челкой") */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        /* Контейнер игры */
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+            height: 100%;
+            max-height: 100%;
+        }
+
+        #game-header-stats {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            /* Уменьшен отступ снизу */
+            padding-bottom: 0px; 
+            margin-bottom: 5px; 
+            
+            font-size: 2rem; 
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+            flex-shrink: 0; /* Запрещаем сжимать заголовок */
+        }
+        
+        .level-label { 
+            color: #bdc3c7; 
+            font-size: inherit;
+        }
+        
+        .level-val { 
+            color: var(--wire-on); 
+            font-size: inherit;
+        }
+
+        #game-container {
+            position: relative;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            border: 4px solid #2c3e50;
+            padding: 15px;
+            transition: width 0.2s, height 0.2s;
+            margin: 0 auto; 
+            /* Гарантируем, что контейнер не вылезет за пределы гибкого блока */
+            flex-shrink: 1; 
+        }
+        
+        #game-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #game-stage {
+            position: relative;
+            /* Размеры задаются в JS */
+        }
+
+        #glow-layer {
+            position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            opacity: 0.6; transition: background 0.3s; mix-blend-mode: screen;
+        }
+
+        #grid-lines {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #fx-canvas {
+            position: absolute; inset: 0; pointer-events: none; z-index: 15;
+        }
+
+        #grid { 
+            display: grid; 
+            gap: 0; 
+            position: relative; 
+            z-index: 5;
+        }
+
+        .cell {
+            position: relative;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .cell svg { 
+            display: block; 
+            overflow: visible; 
+            width: 100%; 
+            height: 100%; 
+        }
+
+        .tile-inner {
+            width: 100%; height: 100%;
+            transition: transform 0.15s ease-out; 
+            pointer-events: none; 
+        }
+
+        path, rect, circle, line { transition: stroke 0.1s, filter 0.1s, fill 0.1s; }
+
+        .wire-bg { 
+            fill: none;
+            stroke: var(--panel-bg);
+            stroke-width: 24; 
+            stroke-linecap: butt;
+        }
+        .wire-path { 
+            fill: none;
+            stroke: var(--wire-off); 
+            stroke-width: 12; 
+            stroke-linecap: round; 
+        }
+        .cap-butt { stroke-linecap: butt; }
+
+        .pg-0 .wire-group-0 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
+        .pg-1 .wire-group-1 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
+        
+        .sc-0 .wire-group-0 { stroke: var(--wire-short) !important; filter: drop-shadow(0 0 8px var(--wire-short)) !important; }
+        .sc-1 .wire-group-1 { stroke: var(--wire-short) !important; filter: drop-shadow(0 0 8px var(--wire-short)) !important; }
+
+        @keyframes flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -25; } }
+
+        .level-complete .pg-0 .wire-group-0, 
+        .level-complete .pg-1 .wire-group-1 {
+            stroke-dasharray: 20 5; 
+            animation: flow 0.5s linear infinite;
+            animation-direction: normal;
+        }
+        .level-complete .cell[class*="in-g0-0"] .wire-group-0.wire-0,
+        .level-complete .cell[class*="in-g0-1"] .wire-group-0.wire-1,
+        .level-complete .cell[class*="in-g0-2"] .wire-group-0.wire-2,
+        .level-complete .cell[class*="in-g0-3"] .wire-group-0.wire-3,
+        .level-complete .cell[class*="in-g1-0"] .wire-group-1.wire-0,
+        .level-complete .cell[class*="in-g1-1"] .wire-group-1.wire-1,
+        .level-complete .cell[class*="in-g1-2"] .wire-group-1.wire-2,
+        .level-complete .cell[class*="in-g1-3"] .wire-group-1.wire-3 {
+            animation-direction: reverse;
+        }
+
+        .bat-case { fill: #555; stroke: #999; stroke-width: 2; }
+        .bat-tip { fill: #888; stroke: none; }
+        .bat-icon { fill: #222; stroke: none; }
+        .pg-0 .bat-case { fill: #ddd; stroke: #fff; filter: drop-shadow(0 0 10px white); }
+        .pg-0 .bat-tip { fill: #fff; }
+        .pg-0 .bat-icon { fill: #f1c40f; }
+        .sc-0 .bat-case { fill: #500; stroke: #f00; filter: drop-shadow(0 0 15px red); }
+        .sc-0 .bat-icon { fill: #f00; }
+
+        .bulb-glass { fill: rgba(120, 144, 156, 0.2); stroke: #78909c; stroke-width: 2.5; }
+        .bulb-cap { fill: #555; stroke: #222; stroke-width: 1; } 
+        .bulb-filament { stroke: #555; stroke-width: 2; fill: none; }
+
+        @keyframes glowPulse { 0%, 100% { filter: drop-shadow(0 0 6px var(--bulb-color)); fill-opacity: 0.6; } 50% { filter: drop-shadow(0 0 15px var(--bulb-color)); fill-opacity: 0.9; } }
+        @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
+
+        .pg-0 .bulb-glass { fill: var(--bulb-color); stroke: #fff; animation: glowPulse 2.5s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.1s); }
+        .pg-0 .bulb-filament { stroke: #fff; stroke-width: 2; }
+        .sc-0 .bulb-glass { fill: #300; stroke: #500; }
+        .level-complete .pg-0 .bulb-glass { animation: partyBlink 0.6s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.08s); }
+
+        #overlay {
+            position: absolute; inset: -20px; 
+            background: rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 30;
+            backdrop-filter: blur(1px);
+        }
+        #overlay.visible { opacity: 1; pointer-events: all; }
+        #overlay h2 { 
+            font-size: 2.5rem; 
+            margin-bottom: 30px; 
+            text-shadow: 0 0 20px black; 
+            letter-spacing: 2px; 
+            white-space: nowrap;
+        }
+        #overlay button {
+            background: linear-gradient(135deg, #2ecc71, #27ae60); border: none; padding: 15px 50px;
+            color: white; font-size: 1.5rem; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4); font-weight: bold; transition: transform 0.1s;
+        }
+        #overlay button:active { transform: scale(0.95); }
+
+        #debug-btn {
+            position: fixed; bottom: 20px; right: 20px;
+            display: flex; gap: 10px; z-index: 100;
+        }
+        .dbg {
+            background: #34495e; color: #bdc3c7; font-size: 0.8rem; padding: 8px 12px;
+            border: 1px solid #555; opacity: 0.7; border-radius: 4px; cursor: pointer;
+        }
+        .dbg:hover { opacity: 1; }
+
+        @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        .cell { animation: popIn 0.3s backwards; }
+        @keyframes shake { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } }
+        .shaking { animation: shake 0.4s; }
+
+        #msg-error {
+            position: absolute; bottom: -30px; width: 100%; text-align: center;
+            color: #e74c3c; font-size: 1rem; font-weight: bold;
+            opacity: 0; transition: opacity 0.1s; text-shadow: 0 0 10px red; height: 20px;
+        }
+        #msg-error.visible { opacity: 1; }
+
+        @media (max-width: 600px) {
+            #game-container { padding: 10px; }
+            #debug-btn { bottom: 10px; right: 10px; opacity: 0.5; }
+            #overlay h2 { font-size: 2rem; }
+            #game-header-stats { font-size: 1.5rem; margin-bottom: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <!-- Заголовок уровня -->
+        <div id="game-header-stats">
+            <span class="level-label">Level:</span>
+            <span class="level-val" id="level-display">1</span>
+        </div>
+
+        <div id="game-container">
+            <div id="game-stage">
+                <div id="glow-layer"></div>
+                <div id="grid-lines"></div>
+                <div id="grid"></div>
+                <canvas id="fx-canvas"></canvas>
+                <div id="overlay">
+                    <h2 style="color: #f1c40f;">GREAT JOB!</h2>
+                    <button onclick="window.game.nextLevel()">Next</button>
+                </div>
+            </div>
+            <div id="msg-error">SHORT CIRCUIT!</div>
+        </div>
+    </div>
+    
+    <div id="debug-btn">
+        <button class="dbg" onclick="window.game.resolve()">Resolve</button>
+        <button class="dbg" onclick="window.game.nextLevel()">Skip</button>
+    </div>
+
+<script>
+/** CONSTANTS */
+const TILES = { EMPTY:0, LINE:1, CORNER:2, TEE:3, CROSS:4, BULB:5, BATTERY:6, BRIDGE:7, D_CORNER:8 };
+const DX = [0, 1, 0, -1];
+const DY = [-1, 0, 1, 0];
+
+const TILE_CONNS = {
+    [TILES.EMPTY]:   [0,0,0,0], [TILES.LINE]:    [1,0,1,0], [TILES.CORNER]:  [1,1,0,0],
+    [TILES.TEE]:     [0,1,1,1], [TILES.CROSS]:   [1,1,1,1], [TILES.BULB]:    [0,0,1,0],
+    [TILES.BATTERY]: [1,0,0,0], [TILES.BRIDGE]:  [1,1,1,1], [TILES.D_CORNER]:[1,1,1,1]
+};
+
+/** AUDIO */
+class SoundSystem {
+    constructor() { this.ctx = null; this.inited = false; }
+    init() {
+        if (!this.inited) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.inited = true;
+        }
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+    }
+    play(t) {
+        if(!this.inited) return;
+        const ctx = this.ctx, now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        
+        if(t==='rotate'){
+            osc.type='triangle'; osc.frequency.setValueAtTime(400,now); 
+            osc.frequency.exponentialRampToValueAtTime(100,now+0.05);
+            g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.01,now+0.05);
+            osc.start(now); osc.stop(now+0.05);
+        } else if(t==='zap'){
+            osc.type='sawtooth'; osc.frequency.setValueAtTime(100,now);
+            for(let i=0;i<10;i++) osc.frequency.linearRampToValueAtTime(100+Math.random()*100,now+i*0.03);
+            g.gain.setValueAtTime(0.2,now); g.gain.linearRampToValueAtTime(0,now+0.3);
+            osc.start(now); osc.stop(now+0.3);
+        } else if(t==='on'){
+            osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); 
+            g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.15, now + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.4); 
+            osc.start(now); osc.stop(now+0.4);
+        }
+    }
+}
+
+/** VFX */
+class VisualFX {
+    constructor() {
+        this.canvas = document.getElementById('fx-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.glowLayer = document.getElementById('glow-layer');
+        this.particles = [];
+        this.loop = this.loop.bind(this);
+        requestAnimationFrame(this.loop);
+    }
+    resize(w, h, cs) {
+        this.canvas.width = w; this.canvas.height = h; this.cellSize = cs;
+    }
+    spawn(cx, cy, type, color) {
+        const cnt = type==='zap'?3: (type==='win'?20:5);
+        for(let i=0;i<cnt;i++){
+            let a=Math.random()*6.28, s=1+Math.random()*4;
+            this.particles.push({
+                x:cx, y:cy, vx:Math.cos(a)*s, vy:Math.sin(a)*s, 
+                life:1, decay:0.02+Math.random()*0.03, 
+                color:color||'#fff', size:1+Math.random()*2, type:type
+            });
+        }
+    }
+    updateLight(bulbs) {
+        if(!bulbs.length) { this.glowLayer.style.opacity=0; return; }
+        let g = bulbs.map(b=>`radial-gradient(circle at ${b.x*this.cellSize+this.cellSize/2}px ${b.y*this.cellSize+this.cellSize/2}px, ${b.color}55 0%, transparent 65%)`);
+        this.glowLayer.style.background = g.join(',');
+        this.glowLayer.style.opacity = 1;
+    }
+    loop() {
+        this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+        for(let i=this.particles.length-1;i>=0;i--){
+            let p=this.particles[i]; p.life-=p.decay; p.x+=p.vx; p.y+=p.vy;
+            if(p.type!=='zap') p.vy+=0.1;
+            if(p.life<=0) this.particles.splice(i,1);
+            else {
+                this.ctx.globalAlpha=p.life; this.ctx.fillStyle=p.color;
+                this.ctx.beginPath(); this.ctx.arc(p.x,p.y,p.size,0,6.28); this.ctx.fill();
+            }
+        }
+        requestAnimationFrame(this.loop);
+    }
+}
+
+/** GENERATOR */
+class LevelGenerator {
+    constructor() {
+        this.dx=[0,1,0,-1]; this.dy=[-1,0,1,0];
+        this.bits=[1,2,4,8]; this.opp=[4,8,1,2];
+    }
+    getCorrectRotation(type, mask) {
+        const base = TILE_CONNS[type];
+        for(let r=0; r<4; r++) {
+            let m = 0;
+            for(let i=0; i<4; i++) if(base[i]) m |= (1 << (i + r)%4);
+            if(m === mask) return r;
+        }
+        return 0;
+    }
+    solveDCornerRot(pair) {
+        for(let r=0; r<4; r++) {
+            let p1 = (pair[0] - r + 4) % 4;
+            let p2 = (pair[1] - r + 4) % 4;
+            let min = Math.min(p1, p2), max = Math.max(p1, p2);
+            if ((min===0 && max===3) || (min===1 && max===2)) return r;
+        }
+        return 0;
+    }
+    solveBridgeRot(vertDir) {
+        if (vertDir === 0 || vertDir === 2) return 0;
+        return 1;
+    }
+    generate(w, h, n, level) {
+        let map = Array(h).fill().map(()=>Array(w).fill().map(()=>({mask:0,type:TILES.EMPTY,nid:-1,bridge:false,dcorner:false})));
+        let globalVisited = new Set();
+        const allowBridge = level >= 10;
+        const allowDCorner = level >= 15;
+        let networks = [];
+        for (let i = 0; i < n; i++) {
+            let startX, startY, attempts=0;
+            do {
+                startX = Math.floor(Math.random()*w); startY = Math.floor(Math.random()*h);
+                attempts++;
+            } while(globalVisited.has(`${startX},${startY}`) && attempts<100);
+            if(attempts<100) {
+                networks.push({ id: i, stack: [{x:startX, y:startY}], active: true });
+                globalVisited.add(`${startX},${startY}`);
+                map[startY][startX].nid = i;
+            }
+        }
+        let activeCount = networks.length;
+        while(activeCount > 0) {
+            for(let net of networks) {
+                if(!net.active) continue;
+                if(net.stack.length === 0) { net.active = false; activeCount--; continue; }
+                let curr = net.stack[net.stack.length - 1];
+                let neighbors = [];
+                for(let d=0; d<4; d++) {
+                    let nx = curr.x + DX[d]; let ny = curr.y + DY[d];
+                    if(nx>=0 && nx<w && ny>=0 && ny<h) {
+                        let key = `${nx},${ny}`;
+                        if(!globalVisited.has(key)) {
+                             neighbors.push({x:nx, y:ny, d:d, type:'normal'});
+                        } else if(allowBridge && map[ny][nx].nid !== -1) {
+                             let m = map[ny][nx].mask;
+                             let cellAfterX = nx + DX[d]; let cellAfterY = ny + DY[d];
+                             if(cellAfterX>=0 && cellAfterX<w && cellAfterY>=0 && cellAfterY<h && !globalVisited.has(`${cellAfterX},${cellAfterY}`)) {
+                                 let isStraightPerp = ((d===0||d===2) && m===10) || ((d===1||d===3) && m===5);
+                                 if(isStraightPerp) neighbors.push({x:cellAfterX, y:cellAfterY, d:d, type:'bridge', midX:nx, midY:ny});
+                             }
+                        }
+                    }
+                }
+                if(allowDCorner) {
+                     for(let d1=0; d1<4; d1++) { 
+                        let midX = curr.x + DX[d1]; let midY = curr.y + DY[d1];
+                        if(midX>=0 && midX<w && midY>=0 && midY<h && map[midY][midX].nid !== -1) {
+                            let m = map[midY][midX].mask;
+                            let isCorner = (m===3||m===6||m===9||m===12);
+                            if(isCorner) {
+                                let turns = [(d1+1)%4, (d1+3)%4];
+                                turns.forEach(d2 => {
+                                    let tx = midX + DX[d2]; let ty = midY + DY[d2];
+                                    if(tx>=0 && tx<w && ty>=0 && ty<h && !globalVisited.has(`${tx},${ty}`)) {
+                                        let entryBit = this.opp[d1]; let exitBit = this.bits[d2];
+                                        if( (m & entryBit) === 0 && (m & exitBit) === 0 ) {
+                                            neighbors.push({ x:tx, y:ty, type:'dcorner', midX:midX, midY:midY, d1:d1, d2:d2 });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                if(neighbors.length) {
+                    let next = neighbors[Math.floor(Math.random()*neighbors.length)];
+                    if(next.type==='normal') {
+                        map[curr.y][curr.x].mask |= this.bits[next.d];
+                        map[next.y][next.x].mask |= this.opp[next.d];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    } else if (next.type==='bridge') {
+                        map[curr.y][curr.x].mask |= this.bits[next.d];
+                        map[next.midY][next.midX].mask |= (this.opp[next.d] | this.bits[next.d]);
+                        map[next.midY][next.midX].bridge = true;
+                        map[next.midY][next.midX].bridgeDir = next.d;
+                        map[next.y][next.x].mask |= this.opp[next.d];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    } else if (next.type==='dcorner') {
+                        map[curr.y][curr.x].mask |= this.bits[next.d1];
+                        map[next.midY][next.midX].mask |= (this.opp[next.d1] | this.bits[next.d2]);
+                        map[next.midY][next.midX].dcorner = true;
+                        map[next.midY][next.midX].dCornerPair = [(next.d1 + 2) % 4, next.d2]; 
+                        map[next.y][next.x].mask |= this.opp[next.d2];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    }
+                } else {
+                    net.stack.pop();
+                }
+            }
+        }
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            let m=map[y][x].mask, c=0; for(let i=0;i<4;i++)if(m&(1<<i))c++;
+            if(c===1) map[y][x].type=TILES.BULB;
+            else if(c===2) map[y][x].type = (m===5||m===10)?TILES.LINE:TILES.CORNER;
+            else if(c===3) map[y][x].type = TILES.TEE;
+            else if(c===4) {
+                if(map[y][x].bridge) map[y][x].type = TILES.BRIDGE;
+                else if(map[y][x].dcorner) map[y][x].type = TILES.D_CORNER;
+                else map[y][x].type = TILES.CROSS;
+            }
+        }
+        let netCells={};
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            if(map[y][x].nid!==-1){
+                if(!netCells[map[y][x].nid]) netCells[map[y][x].nid]=[];
+                netCells[map[y][x].nid].push({x,y});
+            }
+        }
+        Object.values(netCells).forEach(cells=>{
+            let bulbs = cells.filter(c=>map[c.y][c.x].type===TILES.BULB);
+            let t = bulbs.length ? bulbs[Math.floor(Math.random()*bulbs.length)] : cells[0];
+            map[t.y][t.x].type=TILES.BATTERY;
+        });
+        let res=[];
+        for(let y=0;y<h;y++){
+            let r=[];
+            for(let x=0;x<w;x++){
+                let c=map[y][x];
+                let col=null;
+                if(c.type===TILES.BULB) col=['#e74c3c','#3498db','#9b59b6','#f1c40f','#2ecc71'][Math.floor(Math.random()*5)];
+                let correctRot = 0;
+                if (c.type === TILES.BRIDGE) {
+                    if (c.bridgeDir !== undefined) correctRot = this.solveBridgeRot(c.bridgeDir);
+                } else if (c.type === TILES.D_CORNER) {
+                    if (c.dCornerPair) correctRot = this.solveDCornerRot(c.dCornerPair);
+                } else if (c.type !== TILES.BATTERY) {
+                     correctRot = this.getCorrectRotation(c.type, c.mask);
+                } else {
+                     let dir = 0; for(let i=0;i<4;i++) if(c.mask&(1<<i)) dir=i;
+                     correctRot = dir;
+                }
+                r.push({ type: c.type, rot: Math.floor(Math.random()*4), correctRot: correctRot, color: col });
+            }
+            res.push(r);
+        }
+        return res;
+    }
+}
+
+/** GAME ENGINE */
+class Game {
+    constructor() {
+        this.el=document.getElementById('grid');
+        this.gridLines=document.getElementById('grid-lines');
+        this.ov=document.getElementById('overlay');
+        this.err=document.getElementById('msg-error');
+        this.cnt=document.getElementById('game-container');
+        this.stage = document.getElementById('game-stage');
+        this.gen=new LevelGenerator();
+        this.audio = new SoundSystem();
+        this.vfx = new VisualFX();
+        this.lvl=1; this.start();
+    }
+    start() {
+        this.w = Math.min(3 + Math.floor((this.lvl-1)/2), 12);
+        this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
+        let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
+        
+        // Улучшенный расчет свободного места
+        const headerEl = document.getElementById('game-header-stats');
+        const headerH = headerEl.offsetHeight || 50;
+        
+        // Отступы вокруг
+        const margin = 20; 
+        const safeArea = 20; // Дополнительный запас снизу
+        
+        const availW = Math.min(window.innerWidth, 800) - (margin*2);
+        // window.innerHeight уже включает UI, поэтому отнимаем высоту хедера и отступы с запасом
+        const availH = window.innerHeight - headerH - (margin * 2) - safeArea;
+        
+        const cs = Math.min(Math.floor(availW / this.w), Math.floor(availH / this.h), 80);
+        
+        document.documentElement.style.setProperty('--cell-base-size', `${cs}px`);
+        
+        const pxW = (this.w * cs) + 'px';
+        const pxH = (this.h * cs) + 'px';
+
+        this.stage.style.width = pxW;
+        this.stage.style.height = pxH;
+        
+        this.el.style.gridTemplateColumns = `repeat(${this.w}, ${cs}px)`;
+        this.el.style.gridTemplateRows = `repeat(${this.h}, ${cs}px)`;
+        this.el.style.backgroundSize = `${cs}px ${cs}px`;
+
+        // Update grid lines to match
+        this.gridLines.style.backgroundSize = `${cs}px ${cs}px`;
+
+        this.vfx.resize(this.w*cs, this.h*cs, cs);
+        document.getElementById('level-display').textContent=this.lvl;
+        this.map = this.gen.generate(this.w, this.h, nb, this.lvl);
+        this.render();
+        this.ov.classList.remove('visible');
+        this.el.classList.remove('level-complete');
+        this.check(true);
+    }
+    resolve() {
+        this.cells.forEach(row => row.forEach(c => {
+            c.vRot = c.correctRot;
+            c.inEl.style.transform = `rotate(${c.vRot * 90}deg)`;
+        }));
+        this.check(false);
+    }
+    render() {
+        this.el.innerHTML='';
+        this.cells=[];
+        for(let y=0;y<this.h;y++){
+            let r=[];
+            for(let x=0;x<this.w;x++){
+                let d=this.map[y][x];
+                let cel=document.createElement('div'); cel.className='cell';
+                let inn=document.createElement('div'); inn.className='tile-inner';
+                inn.innerHTML=this.svg(d); inn.style.transform=`rotate(${d.rot*90}deg)`;
+                cel.appendChild(inn); this.el.appendChild(cel);
+                let obj={ x,y,type:d.type, vRot:d.rot, correctRot:d.correctRot, el:cel,inEl:inn, color:d.color };
+                cel.onclick=(e)=>this.rot(obj, e);
+                r.push(obj);
+            }
+            this.cells.push(r);
+        }
+    }
+    svg(d) {
+        const t=d.type, c=TILE_CONNS[t];
+        let bg = '', fg = '';
+        const addPath = (dAttr, grp, dir, cap) => {
+            const capClass = cap ? 'cap-butt' : '';
+            bg += `<path d="${dAttr}" class="wire-bg ${capClass}" />`;
+            fg += `<path d="${dAttr}" class="wire-path wire-group-${grp} wire-${dir} ${capClass}" />`;
+        };
+
+        if(t===TILES.BRIDGE) {
+            addPath("M 50 0 L 50 100", 0, "0 wire-2", true); 
+            bg += `<path d="M 0 50 L 100 50" class="wire-bg cap-butt" />`; 
+            addPath("M 0 50 L 100 50", 1, "1 wire-3", true); 
+        } 
+        else if(t===TILES.D_CORNER) {
+            bg += `<path d="M 50 0 Q 50 50 0 50" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 0 Q 50 50 0 50" class="wire-path wire-group-0 wire-0 wire-3 cap-butt" />`;
+            bg += `<path d="M 50 100 Q 50 50 100 50" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 100 Q 50 50 100 50" class="wire-path wire-group-1 wire-2 wire-1 cap-butt" />`;
+        }
+        else if(t===TILES.CORNER) {
+            let p1=-1, p2=-1;
+            for(let i=0; i<4; i++) if(c[i]) { if(p1===-1) p1=i; else p2=i; }
+            
+            const R = 20; 
+            const C = 50; 
+            
+            let dStr = "";
+            const isTR = (p1===0 && p2===1) || (p1===1 && p2===0);
+            const isRB = (p1===1 && p2===2) || (p1===2 && p2===1);
+            const isBL = (p1===2 && p2===3) || (p1===3 && p2===2);
+            const isLT = (p1===3 && p2===0) || (p1===0 && p2===3);
+
+            if(isTR) dStr = `M 50 0 L 50 ${C-R} Q 50 50 ${C+R} 50 L 100 50`;
+            else if(isRB) dStr = `M 100 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 100`;
+            else if(isBL) dStr = `M 50 100 L 50 ${C+R} Q 50 50 ${C-R} 50 L 0 50`;
+            else if(isLT) dStr = `M 0 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 0`;
+
+            bg += `<path d="${dStr}" class="wire-bg cap-butt" />`;
+            fg += `<path d="${dStr}" class="wire-path wire-group-0 wire-${p1} wire-${p2} cap-butt" />`;
+        }
+        else {
+            if(c[0]) addPath("M 50 50 L 50 0", 0, "0", true);
+            if(c[1]) addPath("M 50 50 L 100 50", 0, "1", true);
+            if(c[2]) addPath("M 50 50 L 50 100", 0, "2", true);
+            if(c[3]) addPath("M 50 50 L 0 50", 0, "3", true);
+            
+            if(t!==TILES.EMPTY && t!==TILES.LINE && t!==TILES.CORNER && t!==TILES.BULB) {
+                bg += `<circle cx="50" cy="50" r="7" class="wire-bg" fill="none" stroke-width="18"/>`;
+                fg += `<circle cx="50" cy="50" r="7" class="wire-path wire-group-0" fill="currentColor" stroke="none"/>`;
+            }
+        }
+
+        if(t===TILES.BATTERY) {
+            fg += `<rect x="32" y="20" width="36" height="60" rx="3" class="bat-case" />
+                   <rect x="42" y="14" width="16" height="6" rx="1" class="bat-tip" />
+                   <polygon points="55,35 42,50 50,50 45,65 58,50 50,50" class="bat-icon" />`;
+            addPath("M 50 14 L 50 0", 0, "0", true);
+        } else if(t===TILES.BULB) {
+            fg += `<g transform="translate(12.5, 7.5) scale(0.75)" style="--bulb-color: ${d.color}">
+                    <path d="M 45 75 L 45 55 L 50 45 L 55 55 L 55 75" class="bulb-filament" />
+                    <path d="M 40 75 Q 15 75 15 45 A 20 20 0 1 1 85 45 Q 85 75 60 75 Z" class="bulb-glass" />
+                    <rect x="38" y="75" width="24" height="16" rx="2" class="bulb-cap" />
+                    <line x1="38" y1="80" x2="62" y2="80" class="bulb-thread" />
+                    <line x1="38" y1="86" x2="62" y2="86" class="bulb-thread" />
+                    <path d="M 44 91 L 56 91 L 50 96 Z" fill="#555" />
+                   </g>`;
+            bg += `<path d="M 50 100 L 50 75" class="wire-bg" />`;
+            fg += `<path d="M 50 100 L 50 75" class="wire-path wire-group-0 wire-2" />`;
+        }
+        return `<svg viewBox="0 0 100 100" width="100%" height="100%">${bg}${fg}</svg>`;
+    }
+    rot(c, e) {
+        if(this.ov.classList.contains('visible')) return;
+        this.audio.init(); this.audio.play('rotate');
+        c.vRot++; c.inEl.style.transform=`rotate(${c.vRot*90}deg)`;
+        const cx = c.x * this.vfx.cellSize + this.vfx.cellSize/2;
+        const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
+        this.vfx.spawn(cx, cy, 'spark');
+        this.haptic('tick');
+        this.check(false);
+    }
+    haptic(type) {
+        if(!navigator.vibrate) return;
+        if(type==='tick') navigator.vibrate(10);
+        else if(type==='zap') navigator.vibrate([50, 30, 50]);
+        else if(type==='win') navigator.vibrate([30, 50, 30, 50, 100]);
+    }
+    getLocalGroup(type, lp) {
+        if (!TILE_CONNS[type][lp]) return -1;
+        if (type === TILES.BRIDGE) return (lp % 2 === 0) ? 0 : 1; 
+        if (type === TILES.D_CORNER) return (lp===0 || lp===3) ? 0 : 1; 
+        return 0;
+    }
+    getGlobalGroup(type, rot, globalDir) {
+        let lp = (globalDir - rot + 400) % 4;
+        return this.getLocalGroup(type, lp);
+    }
+    check(silent) {
+        let bulbs=0, lit=0, short=false;
+        let litBulbsArr = []; 
+        this.cells.forEach(r=>r.forEach(c=>{
+            c.el.classList.remove('powered', 'short-circuit', 'flowing', 
+                'pg-0', 'pg-1', 'sc-0', 'sc-1',
+                'in-g0-0','in-g0-1','in-g0-2','in-g0-3','in-g1-0','in-g1-1','in-g1-2','in-g1-3'
+            );
+            c.el.style.removeProperty('--dist');
+            c.visGroups = 0; c.par = null;
+            if(c.type===TILES.BULB) bulbs++;
+        }));
+        let q = [];
+        for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) {
+            let c = this.cells[y][x];
+            if(c.type === TILES.BATTERY) {
+                c.visGroups |= 1; c.el.classList.add('pg-0');
+                q.push({c: c, dist: 0});
+            }
+        }
+        while(q.length > 0) {
+            let {c, dist} = q.shift();
+            let groups = [];
+            if(c.visGroups & 1) groups.push(0);
+            if(c.visGroups & 2) groups.push(1);
+            groups.forEach(grp => {
+                for(let lp=0; lp<4; lp++) {
+                    if(this.getLocalGroup(c.type, lp) === grp) {
+                        let globalDir = (lp + c.vRot) % 4;
+                        let nx = c.x + DX[globalDir];
+                        let ny = c.y + DY[globalDir];
+                        if(nx>=0 && nx<this.w && ny>=0 && ny<this.h) {
+                            let nextC = this.cells[ny][nx];
+                            let entryDir = (globalDir + 2) % 4;
+                            let nextGrp = this.getGlobalGroup(nextC.type, nextC.vRot, entryDir);
+                            if(nextGrp !== -1) {
+                                if(!(nextC.visGroups & (1 << nextGrp))) {
+                                    nextC.visGroups |= (1 << nextGrp);
+                                    nextC.el.classList.add('pg-'+nextGrp);
+                                    let localEntry = (entryDir - nextC.vRot + 400) % 4;
+                                    nextC.el.classList.add(`in-g${nextGrp}-${localEntry}`);
+                                    if(nextC.type!==TILES.BATTERY) nextC.el.style.setProperty('--dist', dist+1);
+                                    if(nextC.type===TILES.BULB) { lit++; litBulbsArr.push(nextC); }
+                                    q.push({c: nextC, dist: dist+1});
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        let visitedSC = new Set();
+        for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) {
+            let start = this.cells[y][x];
+            [0, 1].forEach(g => {
+                if((start.visGroups & (1<<g)) && !visitedSC.has(`${x},${y},${g}`)) {
+                    let qS = [{c: start, grp: g}];
+                    visitedSC.add(`${x},${y},${g}`);
+                    let batsFound = 0;
+                    let pathCells = [];
+                    if(start.type === TILES.BATTERY) batsFound++;
+                    let head = 0;
+                    while(head < qS.length) {
+                        let {c: curr, grp: cGrp} = qS[head++];
+                        pathCells.push({c: curr, grp: cGrp});
+                        for(let lp=0; lp<4; lp++) {
+                            if(this.getLocalGroup(curr.type, lp) === cGrp) {
+                                let globalDir = (lp + curr.vRot) % 4;
+                                let nx = curr.x + DX[globalDir];
+                                let ny = curr.y + DY[globalDir];
+                                if(nx>=0 && nx<this.w && ny>=0 && ny<this.h) {
+                                    let next = this.cells[ny][nx];
+                                    let entryDir = (globalDir + 2) % 4;
+                                    let nGrp = this.getGlobalGroup(next.type, next.vRot, entryDir);
+                                    if(nGrp !== -1 && (next.visGroups & (1<<nGrp))) {
+                                        let key = `${nx},${ny},${nGrp}`;
+                                        if(!visitedSC.has(key)) {
+                                            visitedSC.add(key);
+                                            if(next.type === TILES.BATTERY) batsFound++;
+                                            qS.push({c: next, grp: nGrp});
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if(batsFound > 1) {
+                        short = true;
+                        pathCells.forEach(item => {
+                            item.c.el.classList.add('sc-' + item.grp);
+                            if(Math.random()>0.7) this.vfx.spawn(item.c.x*this.vfx.cellSize+this.vfx.cellSize/2, item.c.y*this.vfx.cellSize+this.vfx.cellSize/2, 'zap');
+                        });
+                    }
+                }
+            });
+        }
+        this.vfx.updateLight(litBulbsArr);
+        if(!silent){
+            if(short && !this.short) {
+                this.audio.play('zap'); this.haptic('zap');
+                this.cnt.classList.remove('shaking'); void this.cnt.offsetWidth; this.cnt.classList.add('shaking');
+            }
+            if(lit>this.prevLit) this.audio.play('on'); else if(lit<this.prevLit) this.audio.play('off');
+        }
+        this.short=short; this.prevLit=lit;
+        this.err.classList.toggle('visible', short);
+        if(lit===bulbs && bulbs>0 && !short){
+            setTimeout(()=>{ 
+                this.audio.play('on'); this.haptic('win');
+                this.ov.classList.add('visible'); this.el.classList.add('level-complete');
+                litBulbsArr.forEach(b => {
+                     const cx = b.x * this.vfx.cellSize + this.vfx.cellSize/2;
+                     const cy = b.y * this.vfx.cellSize + this.vfx.cellSize/2;
+                     this.vfx.spawn(cx, cy, 'win', b.color);
+                });
+            }, 300);
+        }
+    }
+    nextLevel() { this.lvl++; this.start(); }
+}
+window.game = new Game();
+</script>
+</body>
+</html>
