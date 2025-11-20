@@ -61,10 +61,30 @@
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             z-index: 10;
             flex-shrink: 0;
+            cursor: pointer; 
+            transition: color 0.2s;
         }
         
-        .level-label { color: #bdc3c7; font-size: inherit; }
-        .level-val { color: var(--wire-on); font-size: inherit; }
+        @keyframes shake-trigger {
+            0% { transform: translate(1px, 1px) rotate(0deg); color: #e74c3c; }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .reset-charging {
+            animation: shake-trigger 0.5s infinite;
+        }
+
+        .level-label { color: #bdc3c7; font-size: inherit; pointer-events: none; }
+        .level-val { color: var(--wire-on); font-size: inherit; pointer-events: none; }
 
         #game-container {
             position: relative;
@@ -128,7 +148,6 @@
         }
         .cap-butt { stroke-linecap: butt; }
 
-        /* Раздельная подсветка для перекрестных групп */
         .pg-0 .wire-group-0 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         .pg-1 .wire-group-1 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         
@@ -160,7 +179,13 @@
         .sc-0 .bat-case { fill: #500; stroke: #f00; filter: drop-shadow(0 0 15px red); }
         .sc-0 .bat-icon { fill: #f00; }
 
-        .bulb-glass { fill: rgba(120, 144, 156, 0.2); stroke: #78909c; stroke-width: 2.5; }
+        /* === ОБНОВЛЁННЫЙ СТИЛЬ ЛАМПОЧКИ === */
+        .bulb-glass { 
+            fill: rgba(180, 200, 210, 0.15); /* Чуть более плотная заливка */
+            stroke: #b0bec5; /* Более светлый контур для контраста с фоном */
+            stroke-width: 4; /* Более толстый контур */
+            filter: drop-shadow(0 0 3px rgba(0,0,0,0.8)); /* Тень, чтобы отделить от чужого свечения */
+        }
         .bulb-cap { fill: #555; stroke: #222; stroke-width: 1; } 
         .bulb-filament { stroke: #555; stroke-width: 2; fill: none; }
 
@@ -168,7 +193,7 @@
         @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
 
         .pg-0 .bulb-glass, .pg-1 .bulb-glass { 
-            fill: var(--bulb-color); stroke: #fff; 
+            fill: var(--bulb-color); stroke: #fff; stroke-width: 2.5; /* Возвращаем нормальную толщину при включении */
             animation: glowPulse 2.5s ease-in-out infinite; 
             animation-delay: calc(var(--dist) * 0.1s); 
         }
@@ -277,6 +302,30 @@ class SoundSystem {
     play(t) {
         if(!this.inited) return;
         const ctx = this.ctx, now = ctx.currentTime;
+        
+        // === НОВАЯ МЕЛОДИЯ ПОБЕДЫ ===
+        if (t === 'win') {
+            // Мажорное арпеджио (C - E - G - C)
+            const notes = [523.25, 659.25, 783.99, 1046.50]; 
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.connect(g); g.connect(ctx.destination);
+                osc.type = 'triangle'; // Более мягкий и "игровой" звук
+                const startTime = now + i * 0.08; // Быстрое арпеджио
+                
+                osc.frequency.setValueAtTime(freq, startTime);
+                
+                g.gain.setValueAtTime(0, startTime);
+                g.gain.linearRampToValueAtTime(0.1, startTime + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+                
+                osc.start(startTime);
+                osc.stop(startTime + 0.3);
+            });
+            return;
+        }
+
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
         osc.connect(g); g.connect(ctx.destination);
@@ -378,7 +427,7 @@ class LevelGenerator {
         let globalVisited = new Set();
         
         const allowBridge = level >= 10; 
-        const allowDCorner = level >= 20;
+        const allowDCorner = level >= 20; // Changed to 20
         
         let networks = [];
         for (let i = 0; i < n; i++) {
@@ -539,28 +588,116 @@ class Game {
         this.el=document.getElementById('grid');
         this.gridLines=document.getElementById('grid-lines');
         this.ov=document.getElementById('overlay');
-        // this.err removed
         this.cnt=document.getElementById('game-container');
         this.stage = document.getElementById('game-stage');
         this.gen=new LevelGenerator();
         this.audio = new SoundSystem();
         this.vfx = new VisualFX();
         this.inputLocked = false;
-        this.lvl=1; this.start();
-    }
-    start() {
-        this.w = Math.min(3 + Math.floor((this.lvl-1)/2), 12);
-        this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
-        let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
         
-        this.inputLocked = false;
+        this.STORAGE_KEY = 'gimme_light_save';
+        this.SAVE_VERSION = 1;
 
+        this.initResetHandler();
+
+        if (!this.loadProgress()) {
+            this.lvl=1; 
+            this.start();
+        }
+    }
+
+    initResetHandler() {
+        const header = document.getElementById('game-header-stats');
+        let pressTimer;
+        let isPressing = false;
+
+        const startPress = (e) => {
+            if (e.type === 'mousedown' && e.button !== 0) return;
+            
+            isPressing = true;
+            header.classList.add('reset-charging');
+            
+            pressTimer = setTimeout(() => {
+                if (isPressing) {
+                    isPressing = false;
+                    header.classList.remove('reset-charging');
+                    if (confirm("Reset game progress and start from Level 1?")) {
+                        localStorage.removeItem(this.STORAGE_KEY);
+                        window.location.reload();
+                    }
+                }
+            }, 2000); 
+        };
+
+        const cancelPress = () => {
+            isPressing = false;
+            header.classList.remove('reset-charging');
+            clearTimeout(pressTimer);
+        };
+
+        header.addEventListener('mousedown', startPress);
+        header.addEventListener('touchstart', startPress);
+
+        header.addEventListener('mouseup', cancelPress);
+        header.addEventListener('mouseleave', cancelPress);
+        header.addEventListener('touchend', cancelPress);
+    }
+
+    saveProgress() {
+        if (this.cells && this.map) {
+            for(let y=0;y<this.h;y++){
+                for(let x=0;x<this.w;x++){
+                    this.map[y][x].rot = this.cells[y][x].vRot;
+                }
+            }
+        }
+
+        const data = {
+            v: this.SAVE_VERSION,
+            lvl: this.lvl,
+            map: this.map
+        };
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+    }
+
+    loadProgress() {
+        try {
+            const raw = localStorage.getItem(this.STORAGE_KEY);
+            if (!raw) return false;
+            const data = JSON.parse(raw);
+            
+            if (data.v !== this.SAVE_VERSION) return false; 
+            
+            this.lvl = data.lvl;
+            this.map = data.map; 
+
+            this.h = this.map.length;
+            this.w = this.map[0].length;
+
+            this.setupLayout();
+            
+            document.getElementById('level-display').textContent=this.lvl;
+            this.vfx.resize(this.w * parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')), 
+                            this.h * parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')), 
+                            parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')));
+            
+            this.render();
+            this.ov.classList.remove('visible');
+            this.el.classList.remove('level-complete');
+            this.check(true);
+            
+            return true;
+        } catch (e) {
+            console.error("Load failed", e);
+            return false;
+        }
+    }
+
+    setupLayout() {
         const headerEl = document.getElementById('game-header-stats');
         const headerH = headerEl.offsetHeight || 50;
-        
         const margin = 20; 
         const safeArea = 20; 
-        
         const availW = Math.min(window.innerWidth, 800) - (margin*2);
         const availH = window.innerHeight - headerH - (margin * 2) - safeArea;
         
@@ -579,15 +716,29 @@ class Game {
         this.el.style.backgroundSize = `${cs}px ${cs}px`;
 
         this.gridLines.style.backgroundSize = `${cs}px ${cs}px`;
-
+        
         this.vfx.resize(this.w*cs, this.h*cs, cs);
+    }
+
+    start() {
+        this.w = Math.min(3 + Math.floor((this.lvl-1)/2), 12);
+        this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
+        let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
+        
+        this.inputLocked = false;
+        
+        this.setupLayout();
+
         document.getElementById('level-display').textContent=this.lvl;
         this.map = this.gen.generate(this.w, this.h, nb, this.lvl);
         this.render();
         this.ov.classList.remove('visible');
         this.el.classList.remove('level-complete');
+        
+        this.saveProgress(); 
         this.check(true);
     }
+    
     resolve() {
         this.cells.forEach(row => row.forEach(c => {
             c.vRot = c.correctRot;
@@ -595,6 +746,7 @@ class Game {
         }));
         this.check(false);
     }
+    
     render() {
         this.el.innerHTML='';
         this.cells=[];
@@ -623,11 +775,9 @@ class Game {
         };
 
         if(t===TILES.BRIDGE) {
-            // 1. Vertical wire (Group 0)
             bg += `<path d="M 50 -2 L 50 102" class="wire-bg cap-butt" />`;
             fg += `<path d="M 50 -2 L 50 102" class="wire-path wire-group-0 wire-2 wire-0 cap-butt" />`;
 
-            // 2. Horizontal wire (Group 1) with "Hop"
             const hopPath = "M -2 50 L 30 50 C 30 15 70 15 70 50 L 102 50";
             
             fg += `<path d="${hopPath}" class="wire-bg cap-butt" />`;
@@ -699,6 +849,8 @@ class Game {
         const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
         this.vfx.spawn(cx, cy, 'spark');
         this.haptic('tick');
+        
+        this.saveProgress(); 
         this.check(false);
     }
     haptic(type) {
@@ -826,7 +978,7 @@ class Game {
         if(lit===bulbs && bulbs>0 && !short){
             this.inputLocked = true;
             setTimeout(()=>{ 
-                this.audio.play('on'); this.haptic('win');
+                this.audio.play('win'); this.haptic('win');
                 this.ov.classList.add('visible'); this.el.classList.add('level-complete');
                 litBulbsArr.forEach(b => {
                      const cx = b.x * this.vfx.cellSize + this.vfx.cellSize/2;
@@ -836,7 +988,10 @@ class Game {
             }, 300);
         }
     }
-    nextLevel() { this.lvl++; this.start(); }
+    nextLevel() { 
+        this.lvl++; 
+        this.start(); // Save happens inside start()
+    }
 }
 window.game = new Game();
 </script>
