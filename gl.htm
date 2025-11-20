@@ -148,6 +148,7 @@
         }
         .cap-butt { stroke-linecap: butt; }
 
+        /* Цвета проводов */
         .pg-0 .wire-group-0 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         .pg-1 .wire-group-1 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
         
@@ -156,18 +157,17 @@
 
         @keyframes flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -25; } }
 
+        /* Анимация включенных проводов */
         .level-complete .pg-0 .wire-group-0 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
         .level-complete .pg-1 .wire-group-1 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
 
-        .level-complete .cell[class*="in-g0-0"] .wire-group-0.wire-0,
-        .level-complete .cell[class*="in-g0-1"] .wire-group-0.wire-1,
-        .level-complete .cell[class*="in-g0-2"] .wire-group-0.wire-2,
-        .level-complete .cell[class*="in-g0-3"] .wire-group-0.wire-3,
-        .level-complete .cell[class*="in-g1-0"] .wire-group-1.wire-0,
-        .level-complete .cell[class*="in-g1-1"] .wire-group-1.wire-1,
-        .level-complete .cell[class*="in-g1-2"] .wire-group-1.wire-2,
-        .level-complete .cell[class*="in-g1-3"] .wire-group-1.wire-3 {
-            animation-direction: reverse;
+        /* 
+           УНИВЕРСАЛЬНАЯ ЛОГИКА НАПРАВЛЕНИЯ:
+           Теперь мы используем JS, чтобы повесить класс 'reverse-flow' на конкретный DOM-элемент (путь),
+           если ток течет против направления рисования SVG.
+        */
+        .level-complete .wire-path.reverse-flow {
+            animation-direction: reverse !important;
         }
 
         .bat-case { fill: #555; stroke: #999; stroke-width: 2; }
@@ -179,12 +179,11 @@
         .sc-0 .bat-case { fill: #500; stroke: #f00; filter: drop-shadow(0 0 15px red); }
         .sc-0 .bat-icon { fill: #f00; }
 
-        /* === ОБНОВЛЁННЫЙ СТИЛЬ ЛАМПОЧКИ === */
         .bulb-glass { 
-            fill: rgba(180, 200, 210, 0.15); /* Чуть более плотная заливка */
-            stroke: #b0bec5; /* Более светлый контур для контраста с фоном */
-            stroke-width: 4; /* Более толстый контур */
-            filter: drop-shadow(0 0 3px rgba(0,0,0,0.8)); /* Тень, чтобы отделить от чужого свечения */
+            fill: rgba(180, 200, 210, 0.15); 
+            stroke: #cfd8dc; 
+            stroke-width: 4; 
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.8)); 
         }
         .bulb-cap { fill: #555; stroke: #222; stroke-width: 1; } 
         .bulb-filament { stroke: #555; stroke-width: 2; fill: none; }
@@ -193,7 +192,7 @@
         @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
 
         .pg-0 .bulb-glass, .pg-1 .bulb-glass { 
-            fill: var(--bulb-color); stroke: #fff; stroke-width: 2.5; /* Возвращаем нормальную толщину при включении */
+            fill: var(--bulb-color); stroke: #fff; stroke-width: 2.5; 
             animation: glowPulse 2.5s ease-in-out infinite; 
             animation-delay: calc(var(--dist) * 0.1s); 
         }
@@ -303,23 +302,18 @@ class SoundSystem {
         if(!this.inited) return;
         const ctx = this.ctx, now = ctx.currentTime;
         
-        // === НОВАЯ МЕЛОДИЯ ПОБЕДЫ ===
         if (t === 'win') {
-            // Мажорное арпеджио (C - E - G - C)
             const notes = [523.25, 659.25, 783.99, 1046.50]; 
             notes.forEach((freq, i) => {
                 const osc = ctx.createOscillator();
                 const g = ctx.createGain();
                 osc.connect(g); g.connect(ctx.destination);
-                osc.type = 'triangle'; // Более мягкий и "игровой" звук
-                const startTime = now + i * 0.08; // Быстрое арпеджио
-                
+                osc.type = 'triangle'; 
+                const startTime = now + i * 0.08; 
                 osc.frequency.setValueAtTime(freq, startTime);
-                
                 g.gain.setValueAtTime(0, startTime);
                 g.gain.linearRampToValueAtTime(0.1, startTime + 0.02);
                 g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
-                
                 osc.start(startTime);
                 osc.stop(startTime + 0.3);
             });
@@ -427,7 +421,7 @@ class LevelGenerator {
         let globalVisited = new Set();
         
         const allowBridge = level >= 10; 
-        const allowDCorner = level >= 20; // Changed to 20
+        const allowDCorner = level >= 20;
         
         let networks = [];
         for (let i = 0; i < n; i++) {
@@ -613,10 +607,8 @@ class Game {
 
         const startPress = (e) => {
             if (e.type === 'mousedown' && e.button !== 0) return;
-            
             isPressing = true;
             header.classList.add('reset-charging');
-            
             pressTimer = setTimeout(() => {
                 if (isPressing) {
                     isPressing = false;
@@ -637,7 +629,6 @@ class Game {
 
         header.addEventListener('mousedown', startPress);
         header.addEventListener('touchstart', startPress);
-
         header.addEventListener('mouseup', cancelPress);
         header.addEventListener('mouseleave', cancelPress);
         header.addEventListener('touchend', cancelPress);
@@ -651,12 +642,7 @@ class Game {
                 }
             }
         }
-
-        const data = {
-            v: this.SAVE_VERSION,
-            lvl: this.lvl,
-            map: this.map
-        };
+        const data = { v: this.SAVE_VERSION, lvl: this.lvl, map: this.map };
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     }
 
@@ -665,32 +651,22 @@ class Game {
             const raw = localStorage.getItem(this.STORAGE_KEY);
             if (!raw) return false;
             const data = JSON.parse(raw);
-            
             if (data.v !== this.SAVE_VERSION) return false; 
-            
             this.lvl = data.lvl;
             this.map = data.map; 
-
             this.h = this.map.length;
             this.w = this.map[0].length;
-
             this.setupLayout();
-            
             document.getElementById('level-display').textContent=this.lvl;
             this.vfx.resize(this.w * parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')), 
                             this.h * parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')), 
                             parseInt(document.documentElement.style.getPropertyValue('--cell-base-size')));
-            
             this.render();
             this.ov.classList.remove('visible');
             this.el.classList.remove('level-complete');
             this.check(true);
-            
             return true;
-        } catch (e) {
-            console.error("Load failed", e);
-            return false;
-        }
+        } catch (e) { return false; }
     }
 
     setupLayout() {
@@ -700,23 +676,16 @@ class Game {
         const safeArea = 20; 
         const availW = Math.min(window.innerWidth, 800) - (margin*2);
         const availH = window.innerHeight - headerH - (margin * 2) - safeArea;
-        
         const cs = Math.min(Math.floor(availW / this.w), Math.floor(availH / this.h), 80);
-        
         document.documentElement.style.setProperty('--cell-base-size', `${cs}px`);
-        
         const pxW = (this.w * cs) + 'px';
         const pxH = (this.h * cs) + 'px';
-
         this.stage.style.width = pxW;
         this.stage.style.height = pxH;
-        
         this.el.style.gridTemplateColumns = `repeat(${this.w}, ${cs}px)`;
         this.el.style.gridTemplateRows = `repeat(${this.h}, ${cs}px)`;
         this.el.style.backgroundSize = `${cs}px ${cs}px`;
-
         this.gridLines.style.backgroundSize = `${cs}px ${cs}px`;
-        
         this.vfx.resize(this.w*cs, this.h*cs, cs);
     }
 
@@ -724,17 +693,13 @@ class Game {
         this.w = Math.min(3 + Math.floor((this.lvl-1)/2), 12);
         this.h = Math.min(3 + Math.floor(this.lvl/2), 15);
         let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 3));
-        
         this.inputLocked = false;
-        
         this.setupLayout();
-
         document.getElementById('level-display').textContent=this.lvl;
         this.map = this.gen.generate(this.w, this.h, nb, this.lvl);
         this.render();
         this.ov.classList.remove('visible');
         this.el.classList.remove('level-complete');
-        
         this.saveProgress(); 
         this.check(true);
     }
@@ -756,6 +721,12 @@ class Game {
                 let d=this.map[y][x];
                 let cel=document.createElement('div'); cel.className='cell';
                 let inn=document.createElement('div'); inn.className='tile-inner';
+                
+                if (d.type === TILES.CORNER) cel.classList.add('corner');
+                else if (d.type === TILES.BRIDGE) cel.classList.add('bridge');
+                else if (d.type === TILES.D_CORNER) cel.classList.add('dcorner');
+                else if (d.type === TILES.BULB) cel.classList.add('bulb');
+                
                 inn.innerHTML=this.svg(d); inn.style.transform=`rotate(${d.rot*90}deg)`;
                 cel.appendChild(inn); this.el.appendChild(cel);
                 let obj={ x,y,type:d.type, vRot:d.rot, correctRot:d.correctRot, el:cel,inEl:inn, color:d.color };
@@ -775,37 +746,33 @@ class Game {
         };
 
         if(t===TILES.BRIDGE) {
+            // Vertical (Group 0): 0 -> 2
             bg += `<path d="M 50 -2 L 50 102" class="wire-bg cap-butt" />`;
-            fg += `<path d="M 50 -2 L 50 102" class="wire-path wire-group-0 wire-2 wire-0 cap-butt" />`;
+            fg += `<path d="M 50 -2 L 50 102" class="wire-path wire-group-0 wire-0 wire-2 cap-butt" />`;
 
+            // Horizontal (Group 1): 3 -> 1
             const hopPath = "M -2 50 L 30 50 C 30 15 70 15 70 50 L 102 50";
-            
             fg += `<path d="${hopPath}" class="wire-bg cap-butt" />`;
             fg += `<path d="${hopPath}" class="wire-path wire-group-1 wire-3 wire-1 cap-butt" />`;
         } 
         else if(t===TILES.D_CORNER) {
-            bg += `<path d="M 50 -2 Q 50 50 -2 50" class="wire-bg cap-butt" />`;
-            fg += `<path d="M 50 -2 Q 50 50 -2 50" class="wire-path wire-group-0 wire-0 wire-3 cap-butt" />`;
+            // Top-Left (3->0)
+            bg += `<path d="M -2 50 Q 50 50 50 -2" class="wire-bg cap-butt" />`;
+            fg += `<path d="M -2 50 Q 50 50 50 -2" class="wire-path wire-group-0 wire-3 wire-0 cap-butt" />`;
+            
+            // Bot-Right (2->1)
             bg += `<path d="M 50 102 Q 50 50 102 50" class="wire-bg cap-butt" />`;
             fg += `<path d="M 50 102 Q 50 50 102 50" class="wire-path wire-group-1 wire-2 wire-1 cap-butt" />`;
         }
         else if(t===TILES.CORNER) {
             let p1=-1, p2=-1;
             for(let i=0; i<4; i++) if(c[i]) { if(p1===-1) p1=i; else p2=i; }
+            const R = 20; const C = 50; let dStr = "";
             
-            const R = 20; 
-            const C = 50; 
-            
-            let dStr = "";
-            const isTR = (p1===0 && p2===1) || (p1===1 && p2===0);
-            const isRB = (p1===1 && p2===2) || (p1===2 && p2===1);
-            const isBL = (p1===2 && p2===3) || (p1===3 && p2===2);
-            const isLT = (p1===3 && p2===0) || (p1===0 && p2===3);
-
-            if(isTR) dStr = `M 50 -2 L 50 ${C-R} Q 50 50 ${C+R} 50 L 102 50`;
-            else if(isRB) dStr = `M 102 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 102`;
-            else if(isBL) dStr = `M 50 102 L 50 ${C+R} Q 50 50 ${C-R} 50 L -2 50`;
-            else if(isLT) dStr = `M -2 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 -2`;
+            if (p1===0 && p2===1) dStr = `M 50 -2 L 50 ${C-R} Q 50 50 ${C+R} 50 L 102 50`; // 0->1
+            else if (p1===1 && p2===2) dStr = `M 102 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 102`; // 1->2
+            else if (p1===2 && p2===3) dStr = `M 50 102 L 50 ${C+R} Q 50 50 ${C-R} 50 L -2 50`; // 2->3
+            else if (p1===0 && p2===3) dStr = `M -2 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 -2`; // 3->0
 
             bg += `<path d="${dStr}" class="wire-bg cap-butt" />`;
             fg += `<path d="${dStr}" class="wire-path wire-group-0 wire-${p1} wire-${p2} cap-butt" />`;
@@ -817,7 +784,9 @@ class Game {
             addPath("M 50 14 L 50 -2", 0, "0", true);
         } 
         else if(t===TILES.BULB) {
-            addPath("M 50 102 L 50 75", 0, "2", true);
+            // Draw Center -> Edge (75 -> 102)
+            // This connects to Pin 2
+            addPath("M 50 75 L 50 102", 0, "2", true);
             fg += `<g transform="translate(12.5, 7.5) scale(0.75)" style="--bulb-color: ${d.color}">
                     <path d="M 45 75 L 45 55 L 50 45 L 55 55 L 55 75" class="bulb-filament" />
                     <path d="M 40 75 Q 15 75 15 45 A 20 20 0 1 1 85 45 Q 85 75 60 75 Z" class="bulb-glass" />
@@ -828,6 +797,7 @@ class Game {
                    </g>`;
         }
         else {
+            // Hubs: Always Center -> Edge
             if(c[0]) addPath("M 50 50 L 50 -2", 0, "0", true);
             if(c[1]) addPath("M 50 50 L 102 50", 0, "1", true);
             if(c[2]) addPath("M 50 50 L 50 102", 0, "2", true);
@@ -838,7 +808,6 @@ class Game {
                 fg += `<circle cx="50" cy="50" r="7" class="wire-path wire-group-0" fill="currentColor" stroke="none"/>`;
             }
         }
-
         return `<svg viewBox="0 0 100 100" width="100%" height="100%">${bg}${fg}</svg>`;
     }
     rot(c, e) {
@@ -849,7 +818,6 @@ class Game {
         const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
         this.vfx.spawn(cx, cy, 'spark');
         this.haptic('tick');
-        
         this.saveProgress(); 
         this.check(false);
     }
@@ -873,10 +841,14 @@ class Game {
         let bulbs=0, lit=0, short=false;
         let litBulbsArr = []; 
         this.cells.forEach(r=>r.forEach(c=>{
+            // Clear all status classes, including specific wire reversals
             c.el.classList.remove('powered', 'short-circuit', 'flowing', 
                 'pg-0', 'pg-1', 'sc-0', 'sc-1',
                 'in-g0-0','in-g0-1','in-g0-2','in-g0-3','in-g1-0','in-g1-1','in-g1-2','in-g1-3'
             );
+            // Clear all manually added reverse classes
+            c.el.querySelectorAll('.wire-path').forEach(wp => wp.classList.remove('reverse-flow'));
+
             c.el.style.removeProperty('--dist');
             c.visGroups = 0; c.par = null;
             if(c.type===TILES.BULB) bulbs++;
@@ -910,6 +882,59 @@ class Game {
                                     nextC.el.classList.add('pg-'+nextGrp);
                                     let localEntry = (entryDir - nextC.vRot + 400) % 4;
                                     nextC.el.classList.add(`in-g${nextGrp}-${localEntry}`);
+                                    
+                                    // === LOGIC FIX: DIRECT JS REVERSAL ===
+                                    // Instead of complex CSS rules, we directly apply 'reverse-flow' class
+                                    // to the specific wire-path element if the flow opposes drawing direction.
+                                    
+                                    const t = nextC.type;
+                                    const le = localEntry; 
+                                    let needRev = false;
+                                    let targetWire = null;
+
+                                    if (t === TILES.BRIDGE) {
+                                        // Vert (Group 0): 0->2. Entry 2 is Reverse.
+                                        if (nextGrp===0 && le===2) needRev=true;
+                                        // Horz (Group 1): 3->1. Entry 1 is Reverse.
+                                        if (nextGrp===1 && le===1) needRev=true;
+                                        // Target specific wire group
+                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                    } 
+                                    else if (t === TILES.D_CORNER) {
+                                        // G0: 3->0. Entry 0 is Rev.
+                                        if (nextGrp===0 && le===0) needRev=true;
+                                        // G1: 2->1. Entry 1 is Rev.
+                                        if (nextGrp===1 && le===1) needRev=true;
+                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                    }
+                                    else if (t === TILES.CORNER) {
+                                        // 0->1, 1->2, 2->3, 3->0
+                                        // If entry is at 'end' of segment, Rev.
+                                        // Get P1, P2 (ordered for 0,1 1,2 2,3 but special 3,0)
+                                        let p1=-1, p2=-1;
+                                        for(let i=0; i<4; i++) if(TILE_CONNS[t][i]) { if(p1===-1) p1=i; else p2=i; }
+                                        
+                                        if (p1===0 && p2===3) { if(le===0) needRev=true; } // 3->0
+                                        else { if(le===p2) needRev=true; } // p1->p2
+                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                    }
+                                    else if (t === TILES.BULB) {
+                                        // Center->2. Entry is 2. Always Rev.
+                                        needRev = true; 
+                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                    }
+                                    else {
+                                        // Hubs (Line, Tee, Cross)
+                                        // Center -> Out. Entry is at Out. Always Rev on THAT wire.
+                                        // But hub has multiple wires. We need to find the specific one connected to 'le'.
+                                        targetWire = nextC.el.querySelector(`.wire-group-0.wire-${le}`);
+                                        if (targetWire) needRev = true;
+                                    }
+
+                                    if (needRev && targetWire) {
+                                        targetWire.classList.add('reverse-flow');
+                                    }
+
                                     if(nextC.type!==TILES.BATTERY) nextC.el.style.setProperty('--dist', dist+1);
                                     if(nextC.type===TILES.BULB) { lit++; litBulbsArr.push(nextC); }
                                     q.push({c: nextC, dist: dist+1});
@@ -990,7 +1015,7 @@ class Game {
     }
     nextLevel() { 
         this.lvl++; 
-        this.start(); // Save happens inside start()
+        this.start(); 
     }
 }
 window.game = new Game();
