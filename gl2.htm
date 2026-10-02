@@ -333,7 +333,7 @@ const TILE_CONNS = {
 };
 
 const GENERATION_VERSION = 2;
-const MAX_FIELD_SIDE = 25; // 25 * 32 = 800 CSS pixels, leaving room for the header and controls.
+const MAX_FIELD_SIDE = 20; // Fixed for all players; rendering scales to the viewport.
 function levelRandom(level) {
     let seed=2166136261;
     for(const char of `gimme-light:${GENERATION_VERSION}:${level}`)
@@ -809,13 +809,16 @@ class Game {
         this.inputLocked = false;
         
         this.STORAGE_KEY = 'gimme_light_v2_save';
-        this.SAVE_VERSION = 3;
+        this.SAVE_VERSION = 4;
         this.cheatMode=false;
         this.debugMode=new URLSearchParams(window.location.search).get('debug')==='1';
 
         this.initResetHandler();
         this.initPanHandler();
-        const resize=()=>{this.cancelPan();this.setupLayout();this.check(true);};
+        const resize=()=>{
+            if(this.pan || this.panSettling) {this.resizePending=true;return;}
+            this.setupLayout();this.check(true);
+        };
         window.addEventListener('resize',resize);
         window.visualViewport?.addEventListener('resize',resize);
 
@@ -873,7 +876,12 @@ class Game {
         };
         this.stage.addEventListener('pointerup',finish);
         this.stage.addEventListener('pointercancel',finish);
-        this.stage.addEventListener('lostpointercapture',finish);
+        this.stage.addEventListener('lostpointercapture',e=>{
+            // Touch starts with implicit capture on the cell. Transferring capture to
+            // the stage emits a bubbling loss event from that cell, not a finger release.
+            if(e.target!==this.stage || this.stage.hasPointerCapture(e.pointerId)) return;
+            finish(e);
+        });
         this.stage.addEventListener('pointerleave',e=>{
             if(this.pan && !this.pan.dragging) this.pan=null;
         });
@@ -953,6 +961,9 @@ class Game {
         this.panLayer?.remove();this.panLayer=null;this.panCopies=[];
         this.panSettling=false;
         this.stage.classList.remove('panning');
+        if(this.resizePending) {
+            this.resizePending=false;this.setupLayout();this.check(true);
+        }
     }
 
     initResetHandler() {
@@ -1032,7 +1043,7 @@ class Game {
         const {availW,availH} = this.availableSpace();
         // Fractional cells let the complete board fit, even on small landscape screens.
         const cs = Math.floor(Math.min(availW / this.w, availH / this.h, 80)*100)/100;
-        this.stage.style.touchAction = this.spec.wrapX && this.spec.wrapY ? 'none' : this.spec.wrapX ? 'pan-y' : this.spec.wrapY ? 'pan-x' : 'auto';
+        this.stage.style.touchAction = this.spec.wrapX || this.spec.wrapY ? 'none' : 'auto';
         this.stage.classList.toggle('pannable', this.spec.wrapX || this.spec.wrapY);
         document.documentElement.style.setProperty('--cell-base-size', `${cs}px`);
         const pxW = (this.w * cs) + 'px';
