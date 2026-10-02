@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gimme Light!</title>
+    <style>
+        :root {
+            --bg-color: #10151b;
+            --panel-bg: #151d29;
+            --wire-off: #546e7a;
+            --wire-on: #f1c40f;
+            --wire-short: #e74c3c;
+            --grid-line: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-color);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100dvh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+            height: 100%;
+            max-height: 100%;
+        }
+
+        #game-header-stats {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 0px; 
+            margin-bottom: 5px; 
+            font-size: 2rem; 
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+            flex-shrink: 0;
+            cursor: pointer; 
+            transition: color 0.2s;
+        }
+        
+        @keyframes shake-trigger {
+            0% { transform: translate(1px, 1px) rotate(0deg); color: #e74c3c; }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .reset-charging {
+            animation: shake-trigger 0.5s infinite;
+        }
+
+        .level-label { color: #bdc3c7; font-size: inherit; pointer-events: none; }
+        .level-val { color: var(--wire-on); font-size: inherit; pointer-events: none; }
+
+        #game-container {
+            position: relative;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            border: 4px solid #2c3e50;
+            padding: 15px;
+            transition: width 0.2s, height 0.2s;
+            margin: 0 auto; 
+            flex-shrink: 1; 
+        }
+        
+        #game-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #game-stage { position: relative; }
+
+        #glow-layer {
+            position: absolute; inset: 0; pointer-events: none; z-index: 0;
+            opacity: 0.6; transition: background 0.3s; mix-blend-mode: screen;
+        }
+
+        #grid-lines {
+            position: absolute; inset: 0; pointer-events: none; z-index: 1;
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #fx-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
+
+        #grid { 
+            display: grid; gap: 0; position: relative; z-index: 5;
+        }
+
+        .cell { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .cell svg { display: block; overflow: visible; width: 100%; height: 100%; }
+
+        .tile-inner {
+            width: 100%; height: 100%;
+            transition: transform 0.15s ease-out; 
+            pointer-events: none; 
+        }
+
+        path, rect, circle, line { transition: stroke 0.1s, filter 0.1s, fill 0.1s; }
+
+        .wire-bg { 
+            fill: none; stroke: var(--panel-bg); stroke-width: 24; stroke-linecap: butt;
+        }
+        .wire-path { 
+            fill: none; stroke: var(--wire-off); stroke-width: 12; stroke-linecap: round; 
+        }
+        .cap-butt { stroke-linecap: butt; }
+
+        /* Цвета проводов */
+        .pg-0 .wire-group-0 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
+        .pg-1 .wire-group-1 { stroke: var(--wire-on); filter: drop-shadow(0 0 5px var(--wire-on)); }
+        
+        .sc-0 .wire-group-0 { stroke: var(--wire-short) !important; filter: drop-shadow(0 0 8px var(--wire-short)) !important; }
+        .sc-1 .wire-group-1 { stroke: var(--wire-short) !important; filter: drop-shadow(0 0 8px var(--wire-short)) !important; }
+
+        @keyframes flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -25; } }
+
+        /* Анимация включенных проводов */
+        .level-complete .pg-0 .wire-group-0 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
+        .level-complete .pg-1 .wire-group-1 { stroke-dasharray: 20 5; animation: flow 0.5s linear infinite; animation-direction: normal; }
+
+        /* 
+           УНИВЕРСАЛЬНАЯ ЛОГИКА НАПРАВЛЕНИЯ:
+           Теперь мы используем JS, чтобы повесить класс 'reverse-flow' на конкретный DOM-элемент (путь),
+           если ток течет против направления рисования SVG.
+        */
+        .level-complete .wire-path.reverse-flow {
+            animation-direction: reverse !important;
+        }
+
+        .bat-case { fill: #555; stroke: #999; stroke-width: 2; }
+        .bat-tip { fill: #888; stroke: none; }
+        .bat-icon { fill: #222; stroke: none; }
+        .pg-0 .bat-case { fill: #ddd; stroke: #fff; filter: drop-shadow(0 0 10px white); }
+        .pg-0 .bat-tip { fill: #fff; }
+        .pg-0 .bat-icon { fill: #f1c40f; }
+        .sc-0 .bat-case { fill: #500; stroke: #f00; filter: drop-shadow(0 0 15px red); }
+        .sc-0 .bat-icon { fill: #f00; }
+
+        .bulb-glass { 
+            fill: rgba(180, 200, 210, 0.15); 
+            stroke: #cfd8dc; 
+            stroke-width: 4; 
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.8)); 
+        }
+        .bulb-cap { fill: #555; stroke: #222; stroke-width: 1; } 
+        .bulb-filament { stroke: #555; stroke-width: 2; fill: none; }
+
+        @keyframes glowPulse { 0%, 100% { filter: drop-shadow(0 0 6px var(--bulb-color)); fill-opacity: 0.6; } 50% { filter: drop-shadow(0 0 15px var(--bulb-color)); fill-opacity: 0.9; } }
+        @keyframes partyBlink { 0% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } 50% { filter: drop-shadow(0 0 30px var(--bulb-color)); fill-opacity: 1; stroke: #fff; stroke-width: 3; } 100% { filter: drop-shadow(0 0 5px var(--bulb-color)); fill-opacity: 0.5; } }
+
+        .pg-0 .bulb-glass, .pg-1 .bulb-glass { 
+            fill: var(--bulb-color); stroke: #fff; stroke-width: 2.5; 
+            animation: glowPulse 2.5s ease-in-out infinite; 
+            animation-delay: calc(var(--dist) * 0.1s); 
+        }
+        .pg-0 .bulb-filament, .pg-1 .bulb-filament { stroke: #fff; stroke-width: 2; }
+        
+        .sc-0 .bulb-glass { fill: #300; stroke: #500; }
+        .level-complete .pg-0 .bulb-glass, .level-complete .pg-1 .bulb-glass { 
+            animation: partyBlink 0.6s ease-in-out infinite; animation-delay: calc(var(--dist) * 0.08s); 
+        }
+
+        #overlay {
+            position: absolute; inset: -20px; 
+            background: rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 30;
+            backdrop-filter: blur(1px);
+        }
+        #overlay.visible { opacity: 1; pointer-events: all; }
+        #overlay h2 { 
+            font-size: 2.5rem; 
+            margin-bottom: 30px; 
+            text-shadow: 0 0 20px black; 
+            letter-spacing: 2px; 
+            white-space: nowrap;
+        }
+        #overlay button {
+            background: linear-gradient(135deg, #2ecc71, #27ae60); border: none; padding: 15px 50px;
+            color: white; font-size: 1.5rem; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4); font-weight: bold; transition: transform 0.1s;
+        }
+        #overlay button:active { transform: scale(0.95); }
+
+        #debug-btn {
+            display: flex;
+            justify-content: center;
+            gap: 10px; margin-top: 10px; flex-shrink: 0;
+            position: relative; z-index: 100;
+        }
+        .dbg {
+            background: #34495e; color: #bdc3c7; font-size: 0.8rem; padding: 8px 12px;
+            border: 1px solid #555; min-height: 44px; border-radius: 4px; cursor: pointer;
+        }
+        .dbg:hover { opacity: 1; }
+
+        @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        .cell { animation: popIn 0.3s backwards; }
+        @keyframes shake { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } }
+        .shaking { animation: shake 0.4s; }
+
+        @media (max-width: 600px) {
+            #game-container { padding: 10px; }
+            #overlay h2 { font-size: 2rem; }
+            #game-header-stats { font-size: 1.5rem; margin-bottom: 5px; }
+        }
+        html, body { overflow:hidden; overscroll-behavior:none; }
+        body { height:var(--viewport-height,100dvh); align-items:center; justify-content:center; }
+        #game-wrapper { margin:0 auto; width:100%; min-width:0; max-width:1000px; min-height:0; height:100%; flex-shrink:0; }
+        #game-container { flex-shrink:0; }
+        #grid-lines { display:none; }
+        .active-cell { box-shadow:inset 0 0 0 1px var(--grid-line); background:rgba(255,255,255,.025); }
+        .cell.void { visibility:hidden; pointer-events:none; }
+        .wrap-edge { position:absolute; z-index:8; pointer-events:none; background:#56d9e8; opacity:.85; }
+        .wrap-edge.left,.wrap-edge.right { width:3px; height:22%; top:39%; }
+        .wrap-edge.top,.wrap-edge.bottom { height:3px; width:22%; left:39%; }
+        .wrap-edge.left { left:0; } .wrap-edge.right { right:0; }
+        .wrap-edge.top { top:0; } .wrap-edge.bottom { bottom:0; }
+        .pannable { cursor:grab; }
+        .pannable.panning { cursor:grabbing; }
+        .panning #grid, .panning #glow-layer, .panning #fx-canvas { visibility:hidden; }
+        .pan-layer { position:absolute; inset:0; overflow:hidden; z-index:6; pointer-events:none;
+            box-shadow:inset 0 0 20px #56d9e822; }
+        .pan-copy { position:absolute; top:0; left:0; display:grid; gap:0; will-change:transform; }
+        .pan-copy .cell, .no-pop .cell { animation:none; }
+        .pan-copy .wrap-edge { display:none; }
+        #cheat-badge { color:#ecb9ff; background:#61277b44; border:1px solid #b868db;
+            border-radius:20px; padding:3px 12px; margin-bottom:5px; font-size:11px; letter-spacing:1px; }
+        .cheat-mode #game-header-stats { font-size:clamp(18px,5vw,30px); cursor:default; }
+        .cheat-mode .level-label,.cheat-mode .level-val { color:#d993ff; }
+        .cheat-mode #game-container { border-color:#9756b4; }
+        .cheat-mode #overlay button { font-size:1rem; padding:15px 20px; }
+        #overlay { position:fixed; inset:0; border-radius:0; z-index:50; }
+        #game-container { transition:none; }
+        #game-header-stats { flex-wrap:wrap; gap:0 8px; line-height:1.15; }
+        #cheat-badge { max-width:100%; text-align:center; flex-shrink:0; }
+        @media (max-height:450px), (max-width:280px) {
+            body { padding-left:4px; padding-right:4px; }
+            #game-container { padding:4px; border-width:2px; }
+            #game-header-stats, .cheat-mode #game-header-stats { font-size:16px; margin-bottom:3px; }
+            #debug-btn { margin-top:4px; gap:6px; }
+            .dbg { min-height:28px; padding:4px 10px; font-size:11px; }
+            #cheat-badge { font-size:9px; padding:1px 6px; margin-bottom:3px; letter-spacing:0; }
+            #overlay h2 { font-size:1.4rem; margin:10px; }
+            #overlay button { padding:10px 25px; font-size:1rem; }
+        }
+        [hidden] { display:none !important; }
+        .wrap-edge.edge-powered { background:var(--wire-on); }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="game-header-stats">
+            <span class="level-label" id="level-label">Level:</span>
+            <span class="level-val" id="level-display">1</span>
+        </div>
+
+        <div id="cheat-badge" hidden>SANDBOX * PROGRESS NOT SAVED</div>
+        <div id="game-container">
+            <div id="game-stage">
+                <div id="glow-layer"></div>
+                <div id="grid-lines"></div>
+                <div id="grid"></div>
+                <canvas id="fx-canvas"></canvas>
+                <div id="overlay">
+                    <h2 style="color: #f1c40f;">GREAT JOB!</h2>
+                    <button id="next-button" onclick="window.game.nextLevel()">Next</button>
+                </div>
+
+            </div>
+        </div>
+        <div id="debug-btn" hidden>
+            <button type="button" class="dbg" onclick="window.game.resolve()">Resolve</button>
+            <button type="button" class="dbg" onclick="window.game.nextLevel()">Skip</button>
+            <button type="button" class="dbg" onclick="window.game.exitSandbox()">Exit debug</button>
+        </div>
+    </div>
+
+<script>
+/** CONSTANTS */
+const TILES = { EMPTY:0, LINE:1, CORNER:2, TEE:3, CROSS:4, BULB:5, BATTERY:6, BRIDGE:7, D_CORNER:8 };
+const DX = [0, 1, 0, -1];
+const DY = [-1, 0, 1, 0];
+
+const TILE_CONNS = {
+    [TILES.EMPTY]:   [0,0,0,0], [TILES.LINE]:    [1,0,1,0], [TILES.CORNER]:  [1,1,0,0],
+    [TILES.TEE]:     [0,1,1,1], [TILES.CROSS]:   [1,1,1,1], [TILES.BULB]:    [0,0,1,0],
+    [TILES.BATTERY]: [1,0,0,0], [TILES.BRIDGE]:  [1,1,1,1], [TILES.D_CORNER]:[1,1,1,1]
+};
+
+const GENERATION_VERSION = 2;
+const MAX_FIELD_SIDE = 25; // 25 * 32 = 800 CSS pixels, leaving room for the header and controls.
+function levelRandom(level) {
+    let seed=2166136261;
+    for(const char of `gimme-light:${GENERATION_VERSION}:${level}`)
+        seed=Math.imul(seed^char.charCodeAt(0),16777619)>>>0;
+    return ()=>{
+        seed=(seed+0x6D2B79F5)>>>0;
+        let t=seed;
+        t=Math.imul(t^(t>>>15),t|1);
+        t^=t+Math.imul(t^(t>>>7),t|61);
+        return ((t^(t>>>14))>>>0)/4294967296;
+    };
+}
+function cheatLevelFromURL(search) {
+    const raw=new URLSearchParams(search).get('level');
+    if(!raw || !/^[0-9]+$/.test(raw)) return null;
+    const level=Number(raw);
+    return Number.isSafeInteger(level) && level>=1 ? level : null;
+}
+
+/** Field templates from Field.java. A torus wraps both axes; a ring wraps one. */
+function fieldSpec(level) {
+    // Candidate shapes repeat; sieves are deferred until their pattern fits the budget and screen.
+    const index = (level - 1) % 9, cycle = Math.floor((level - 1) / 9);
+    const template = [0,1,2,6,3,4,5,7,0][index];
+    const torus = index === 8 || (cycle % 2 === 1 && template > 0 && template !== 7);
+    return {template, wrapX:torus || (template===7 && cycle%2===0),
+        wrapY:torus || (template===7 && cycle%2===1), spacing:2+cycle%4};
+}
+function neighbor(x,y,d,w,h,spec) {
+    let nx=x+DX[d], ny=y+DY[d];
+    if(spec.wrapX) nx=(nx+w)%w;
+    if(spec.wrapY) ny=(ny+h)%h;
+    return {x:nx,y:ny};
+}
+// Center full repetitions instead of clipping the pattern at the right/bottom edge.
+function sieveLayout(w,h,spec) {
+    const staggered=spec.template===4, step=staggered ? 2 : spec.spacing;
+    function axis(size) {
+        let count=Math.floor((size-3)/step)+1;
+        while(count>0) {
+            const span=(count-1)*step+1, margin=(size-span)/2;
+            if(Number.isInteger(margin) && margin>=1 && (!staggered || count%2===0))
+                return Array.from({length:count},(_,i)=>margin+i*step);
+            count--;
+        }
+        return [];
+    }
+    const xs=axis(w),ys=axis(h);
+    // Regular: >=3 holes per row/column. Staggered: >=2 in every alternating row/column.
+    const minimum=staggered ? 4 : 3;
+    return xs.length>=minimum && ys.length>=minimum ? {xs,ys} : null;
+}
+function fieldMask(w,h,spec) {
+    const mask=Array.from({length:h},()=>Array(w).fill(true));
+    const cut=(x,y)=>{ if(mask[y] && x>=0 && x<w) mask[y][x]=false; };
+    const t=spec.template;
+    if(t===1) {
+        for(let y=0;y<Math.floor(h/2);y++) {
+            const width=Math.abs(y-Math.floor((w-1)/2));
+            for(let x=0;x<width;x++) {cut(x,y);cut(w-1-x,y);cut(x,h-1-y);cut(w-1-x,h-1-y);}
+        }
+    } else if(t===2) {
+        let cw=Math.floor(w/3), ch=Math.floor(h/3);
+        if((w-cw)%2) cw++; if((h-ch)%2) ch++;
+        for(let y=0;y<(h-ch)/2;y++) for(let x=0;x<(w-cw)/2;x++) {
+            cut(x,y);cut(w-1-x,y);cut(x,h-1-y);cut(w-1-x,h-1-y);
+        }
+    } else if(t===3 || t===4) {
+        const layout=sieveLayout(w,h,spec);
+        if(layout) layout.ys.forEach((y,j)=>layout.xs.forEach((x,i)=>{
+            if(t===3 || (i+j)%2===0) cut(x,y);
+        }));
+    } else if(t===5 && w<7) {
+        // The original template requires >=7 cells; thicken tiny diagonal arms.
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++)
+            if(Math.abs(x-y)>1 && Math.abs(x+y-w+1)>1) cut(x,y);
+    } else if(t===5) {
+        let l=Math.floor(w/2); if((w-l)%2) l++;
+        const offset=(w-l)/2;
+        for(let y=0;y<Math.ceil(l/2);y++) for(let x=0;x<l-2*y;x++) {
+            cut(x+offset+y,y);cut(x+offset+y,h-1-y);
+            cut(y,x+offset+y);cut(w-1-y,x+offset+y);
+        }
+    } else if(t===6) {
+        let cw=Math.floor(w/2),ch=Math.floor(h/2);
+        if((w-cw)%2) cw--; if((h-ch)%2) ch--;
+        for(let y=(h-ch)/2;y<(h+ch)/2;y++) for(let x=(w-cw)/2;x<(w+cw)/2;x++) cut(x,y);
+    }
+    return mask;
+}
+
+// Initial balancing estimates, not measured player difficulty. Keep tuning in one place.
+const DIFFICULTY = {
+    shape: [1.00, 0.88, 0.84, 0.90, 0.92, 0.82, 0.90, 1.00],
+    ring: 1.22,
+    torus: 1.48,
+    initial: 9,
+    perLevel: 1.5
+};
+function fieldDifficulty(w,h,spec) {
+    const mask=fieldMask(w,h,spec);
+    let active=0, boundary=0, narrow=0;
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++) {
+        if(!mask[y][x]) continue;
+        active++;
+        let degree=0;
+        for(let d=0;d<4;d++) {
+            const p=neighbor(x,y,d,w,h,spec);
+            if(mask[p.y]?.[p.x]) degree++;
+        }
+        if(degree<4) boundary++;
+        if(degree<=2) narrow++;
+    }
+    // Compare to an equally sized rectangle with the same wrapping. This keeps
+    // the baseline rectangle at 1, while extra edges and narrow paths provide hints.
+    const innerW=spec.wrapX ? w : Math.max(0,w-2);
+    const innerH=spec.wrapY ? h : Math.max(0,h-2);
+    const baseBoundary=1-innerW*innerH/(w*h);
+    const baseNarrow=(!spec.wrapX && !spec.wrapY) ? 4/(w*h) : 0;
+    const edgeHints=Math.max(0,boundary/Math.max(1,active)-baseBoundary);
+    const narrowHints=Math.max(0,narrow/Math.max(1,active)-baseNarrow);
+    const geometry=Math.max(0.82,1-0.16*edgeHints-0.12*narrowHints);
+    const topology=spec.wrapX && spec.wrapY ? DIFFICULTY.torus :
+        spec.wrapX || spec.wrapY ? DIFFICULTY.ring : 1;
+    const coefficient=DIFFICULTY.shape[spec.template]*geometry*topology;
+    return {active,coefficient,effort:active*coefficient};
+}
+function levelDimensions(level, spec) {
+    const maxW=MAX_FIELD_SIDE, maxH=MAX_FIELD_SIDE;
+    const target=DIFFICULTY.initial+(level-1)*DIFFICULTY.perLevel;
+    const square=spec.template===1 || spec.template===5;
+    const shaped=spec.template>0 && spec.template<7;
+    const aspect=1.25; // Fixed preferred portrait aspect; never derived from the screen.
+    const sieve=spec.template===3 || spec.template===4;
+    let best=sieve ? null : {w:3,h:3}, score=Infinity;
+    for(let w=3;w<=maxW;w++) for(let h=3;h<=maxH;h++) {
+        if(square && w!==h) continue;
+        if(spec.template===5 && Math.min(maxW,maxH)>=5 && (w<5 || h<5)) continue;
+        if(sieve && !sieveLayout(w,h,spec)) continue;
+        const metrics=fieldDifficulty(w,h,spec);
+        if(sieve && metrics.effort>target) continue;
+        if(metrics.active<4 || (shaped && metrics.active===w*h)) continue;
+        // Prefer a small undershoot over a sudden jump; aspect is only a tie-breaker.
+        const error=Math.abs(metrics.effort-target)*(metrics.effort>target ? 1.25 : 1);
+        const cost=error+Math.abs(Math.log((h/w)/aspect))*2;
+        if(cost<score) {score=cost;best={w,h};}
+    }
+    return best;
+}
+
+function selectLevelLayout(level) {
+    let spec=fieldSpec(level);
+    let dimensions=levelDimensions(level,spec);
+    if(!dimensions) {
+        // Keep the difficulty curve and cell size; do not enlarge a board just to force a sieve.
+        spec={...spec,template:spec.template===3 ? 0 : 6};
+        dimensions=levelDimensions(level,spec);
+    }
+    return {spec,...dimensions};
+}
+
+/** AUDIO */
+class SoundSystem {
+    constructor() { this.ctx = null; this.inited = false; }
+    init() {
+        if (!this.inited) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.inited = true;
+        }
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+    }
+    play(t) {
+        if(!this.inited) return;
+        const ctx = this.ctx, now = ctx.currentTime;
+        
+        if (t === 'win') {
+            const notes = [523.25, 659.25, 783.99, 1046.50]; 
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.connect(g); g.connect(ctx.destination);
+                osc.type = 'triangle'; 
+                const startTime = now + i * 0.08; 
+                osc.frequency.setValueAtTime(freq, startTime);
+                g.gain.setValueAtTime(0, startTime);
+                g.gain.linearRampToValueAtTime(0.1, startTime + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+                osc.start(startTime);
+                osc.stop(startTime + 0.3);
+            });
+            return;
+        }
+
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        
+        if(t==='rotate'){
+            osc.type='triangle'; osc.frequency.setValueAtTime(400,now); 
+            osc.frequency.exponentialRampToValueAtTime(100,now+0.05);
+            g.gain.setValueAtTime(0.1,now); g.gain.exponentialRampToValueAtTime(0.01,now+0.05);
+            osc.start(now); osc.stop(now+0.05);
+        } else if(t==='zap'){
+            osc.type='sawtooth'; osc.frequency.setValueAtTime(100,now);
+            for(let i=0;i<10;i++) osc.frequency.linearRampToValueAtTime(100+Math.random()*100,now+i*0.03);
+            g.gain.setValueAtTime(0.2,now); g.gain.linearRampToValueAtTime(0,now+0.3);
+            osc.start(now); osc.stop(now+0.3);
+        } else if(t==='on'){
+            osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); 
+            g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.15, now + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.4); 
+            osc.start(now); osc.stop(now+0.4);
+        }
+    }
+}
+
+/** VFX */
+class VisualFX {
+    constructor() {
+        this.canvas = document.getElementById('fx-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.glowLayer = document.getElementById('glow-layer');
+        this.particles = [];
+        this.loop = this.loop.bind(this);
+        requestAnimationFrame(this.loop);
+    }
+    resize(w, h, cs) {
+        this.canvas.width = w; this.canvas.height = h; this.cellSize = cs;
+    }
+    spawn(cx, cy, type, color) {
+        const cnt = type==='zap'?3: (type==='win'?20:5);
+        for(let i=0;i<cnt;i++){
+            let a=Math.random()*6.28, s=1+Math.random()*4;
+            this.particles.push({
+                x:cx, y:cy, vx:Math.cos(a)*s, vy:Math.sin(a)*s, 
+                life:1, decay:0.02+Math.random()*0.03, 
+                color:color||'#fff', size:1+Math.random()*2, type:type
+            });
+        }
+    }
+    updateLight(bulbs) {
+        if(!bulbs.length) { this.glowLayer.style.opacity=0; return; }
+        let g = bulbs.map(b=>`radial-gradient(circle at ${b.x*this.cellSize+this.cellSize/2}px ${b.y*this.cellSize+this.cellSize/2}px, ${b.color}55 0%, transparent 65%)`);
+        this.glowLayer.style.background = g.join(',');
+        this.glowLayer.style.opacity = 1;
+    }
+    loop() {
+        this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+        for(let i=this.particles.length-1;i>=0;i--){
+            let p=this.particles[i]; p.life-=p.decay; p.x+=p.vx; p.y+=p.vy;
+            if(p.type!=='zap') p.vy+=0.1;
+            if(p.life<=0) this.particles.splice(i,1);
+            else {
+                this.ctx.globalAlpha=p.life; this.ctx.fillStyle=p.color;
+                this.ctx.beginPath(); this.ctx.arc(p.x,p.y,p.size,0,6.28); this.ctx.fill();
+            }
+        }
+        requestAnimationFrame(this.loop);
+    }
+}
+
+/** GENERATOR */
+class LevelGenerator {
+    constructor() {
+        this.dx=[0,1,0,-1]; this.dy=[-1,0,1,0];
+        this.bits=[1,2,4,8]; this.opp=[4,8,1,2];
+    }
+    getCorrectRotation(type, mask) {
+        const base = TILE_CONNS[type];
+        for(let r=0; r<4; r++) {
+            let m = 0;
+            for(let i=0; i<4; i++) if(base[i]) m |= (1 << (i + r)%4);
+            if(m === mask) return r;
+        }
+        return 0;
+    }
+    solveDCornerRot(pair) {
+        for(let r=0; r<4; r++) {
+            let p1 = (pair[0] - r + 4) % 4;
+            let p2 = (pair[1] - r + 4) % 4;
+            let min = Math.min(p1, p2), max = Math.max(p1, p2);
+            if ((min===0 && max===3) || (min===1 && max===2)) return r;
+        }
+        return 0;
+    }
+    solveBridgeRot(vertDir) {
+        if (vertDir === 0 || vertDir === 2) return 0;
+        return 1;
+    }
+    generate(w, h, n, level, spec = fieldSpec(level)) {
+        const random=levelRandom(level);
+        const mask = fieldMask(w,h,spec);
+        const step=(x,y,d)=>neighbor(x,y,d,w,h,spec);
+        let map = Array(h).fill().map(()=>Array(w).fill().map(()=>({mask:0,type:TILES.EMPTY,nid:-1,bridge:false,dcorner:false})));
+        let globalVisited = new Set();
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(!mask[y][x]) globalVisited.add(`${x},${y}`);
+        
+        const allowBridge = level >= 10; 
+        const allowDCorner = level >= 20;
+        
+        let networks = [];
+        // Seed each network with an edge: an isolated battery can never be generated.
+        for (let i=0;i<n;i++) {
+            const candidates=[];
+            for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(!globalVisited.has(`${x},${y}`)) {
+                for(let d=0;d<4;d++) {
+                    const p=step(x,y,d);
+                    if(p.x>=0 && p.x<w && p.y>=0 && p.y<h && !globalVisited.has(`${p.x},${p.y}`)) candidates.push({x,y,d,p});
+                }
+            }
+            if(!candidates.length) break;
+            const {x,y,d,p}=candidates[Math.floor(random()*candidates.length)];
+            map[y][x].mask=this.bits[d]; map[p.y][p.x].mask=this.opp[d];
+            map[y][x].nid=map[p.y][p.x].nid=i;
+            globalVisited.add(`${x},${y}`); globalVisited.add(`${p.x},${p.y}`);
+            networks.push({id:i,stack:[{x,y},p],active:true});
+        }
+        let activeCount = networks.length;
+        while(activeCount > 0) {
+            for(let net of networks) {
+                if(!net.active) continue;
+                if(net.stack.length === 0) { net.active = false; activeCount--; continue; }
+                let curr = net.stack[net.stack.length - 1];
+                let neighbors = [];
+                for(let d=0; d<4; d++) {
+                    let {x:nx,y:ny} = step(curr.x,curr.y,d);
+                    if(nx>=0 && nx<w && ny>=0 && ny<h) {
+                        let key = `${nx},${ny}`;
+                        if(!globalVisited.has(key)) {
+                             neighbors.push({x:nx, y:ny, d:d, type:'normal'});
+                        } else if(allowBridge && map[ny][nx].nid !== -1) {
+                             let m = map[ny][nx].mask;
+                             let {x:cellAfterX,y:cellAfterY} = step(nx,ny,d);
+                             if(cellAfterX>=0 && cellAfterX<w && cellAfterY>=0 && cellAfterY<h && !globalVisited.has(`${cellAfterX},${cellAfterY}`)) {
+                                 let isStraightPerp = ((d===0||d===2) && m===10) || ((d===1||d===3) && m===5);
+                                 if(isStraightPerp) neighbors.push({x:cellAfterX, y:cellAfterY, d:d, type:'bridge', midX:nx, midY:ny});
+                             }
+                        }
+                    }
+                }
+                if(allowDCorner) {
+                     for(let d1=0; d1<4; d1++) { 
+                        let {x:midX,y:midY} = step(curr.x,curr.y,d1);
+                        if(midX>=0 && midX<w && midY>=0 && midY<h && map[midY][midX].nid !== -1) {
+                            let m = map[midY][midX].mask;
+                            let isCorner = (m===3||m===6||m===9||m===12);
+                            if(isCorner) {
+                                let turns = [(d1+1)%4, (d1+3)%4];
+                                turns.forEach(d2 => {
+                                    let {x:tx,y:ty} = step(midX,midY,d2);
+                                    if(tx>=0 && tx<w && ty>=0 && ty<h && !globalVisited.has(`${tx},${ty}`)) {
+                                        let entryBit = this.opp[d1]; let exitBit = this.bits[d2];
+                                        if( (m & entryBit) === 0 && (m & exitBit) === 0 ) {
+                                            neighbors.push({ x:tx, y:ty, type:'dcorner', midX:midX, midY:midY, d1:d1, d2:d2 });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+
+                let special = neighbors.filter(n => n.type !== 'normal');
+                let normals = neighbors.filter(n => n.type === 'normal');
+                
+                if(special.length > 0) {
+                    let next = special[Math.floor(random() * special.length)];
+                    if (next.type==='bridge') {
+                        map[curr.y][curr.x].mask |= this.bits[next.d];
+                        map[next.midY][next.midX].mask |= (this.opp[next.d] | this.bits[next.d]);
+                        map[next.midY][next.midX].bridge = true;
+                        map[next.midY][next.midX].bridgeDir = next.d;
+                        map[next.y][next.x].mask |= this.opp[next.d];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    } else if (next.type==='dcorner') {
+                        map[curr.y][curr.x].mask |= this.bits[next.d1];
+                        map[next.midY][next.midX].mask |= (this.opp[next.d1] | this.bits[next.d2]);
+                        map[next.midY][next.midX].dcorner = true;
+                        map[next.midY][next.midX].dCornerPair = [(next.d1 + 2) % 4, next.d2]; 
+                        map[next.y][next.x].mask |= this.opp[next.d2];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    }
+                } 
+                else if(normals.length > 0) {
+                    // Fisher-Yates has identical results across JS engines (random sort does not).
+                    for(let i=normals.length-1;i>0;i--) {
+                        const j=Math.floor(random()*(i+1));
+                        [normals[i],normals[j]]=[normals[j],normals[i]];
+                    }
+                    let branches = 1;
+                    if (random() < 0.2) {
+                        branches = Math.min(normals.length, 3);
+                        if(branches > 1 && random() < 0.5) branches = 2;
+                    }
+                    let taken = normals.slice(0, branches);
+                    taken.forEach(next => {
+                        map[curr.y][curr.x].mask |= this.bits[next.d];
+                        map[next.y][next.x].mask |= this.opp[next.d];
+                        map[next.y][next.x].nid = net.id;
+                        globalVisited.add(`${next.x},${next.y}`);
+                        net.stack.push({x:next.x, y:next.y});
+                    });
+                } 
+                else {
+                    net.stack.pop();
+                }
+            }
+        }
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            let m=map[y][x].mask, c=0; for(let i=0;i<4;i++)if(m&(1<<i))c++;
+            if(c===1) map[y][x].type=TILES.BULB;
+            else if(c===2) map[y][x].type = (m===5||m===10)?TILES.LINE:TILES.CORNER;
+            else if(c===3) map[y][x].type = TILES.TEE;
+            else if(c===4) {
+                if(map[y][x].bridge) map[y][x].type = TILES.BRIDGE;
+                else if(map[y][x].dcorner) map[y][x].type = TILES.D_CORNER;
+                else map[y][x].type = TILES.CROSS;
+            }
+        }
+        let netCells={};
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+            if(map[y][x].nid!==-1){
+                if(!netCells[map[y][x].nid]) netCells[map[y][x].nid]=[];
+                netCells[map[y][x].nid].push({x,y});
+            }
+        }
+        Object.values(netCells).forEach(cells=>{
+            let bulbs = cells.filter(c=>map[c.y][c.x].type===TILES.BULB);
+            let t = bulbs.length ? bulbs[Math.floor(random()*bulbs.length)] : cells[0];
+            map[t.y][t.x].type=TILES.BATTERY;
+        });
+        let res=[];
+        for(let y=0;y<h;y++){
+            let r=[];
+            for(let x=0;x<w;x++){
+                let c=map[y][x];
+                let col=null;
+                if(c.type===TILES.BULB) col=['#e74c3c','#3498db','#9b59b6','#f1c40f','#2ecc71'][Math.floor(random()*5)];
+                let correctRot = 0;
+                if (c.type === TILES.BRIDGE) {
+                    if (c.bridgeDir !== undefined) correctRot = this.solveBridgeRot(c.bridgeDir);
+                } else if (c.type === TILES.D_CORNER) {
+                    if (c.dCornerPair) correctRot = this.solveDCornerRot(c.dCornerPair);
+                } else if (c.type !== TILES.BATTERY) {
+                     correctRot = this.getCorrectRotation(c.type, c.mask);
+                } else {
+                     let dir = 0; for(let i=0;i<4;i++) if(c.mask&(1<<i)) dir=i;
+                     correctRot = dir;
+                }
+                r.push({ type: c.type, rot: Math.floor(random()*4), correctRot: correctRot, color: col, blocked: !mask[y][x] });
+            }
+            res.push(r);
+        }
+        return res;
+    }
+}
+
+/** GAME ENGINE */
+class Game {
+    constructor() {
+        this.el=document.getElementById('grid');
+        this.gridLines=document.getElementById('grid-lines');
+        this.ov=document.getElementById('overlay');
+        this.cnt=document.getElementById('game-container');
+        this.stage = document.getElementById('game-stage');
+        this.gen=new LevelGenerator();
+        this.audio = new SoundSystem();
+        this.vfx = new VisualFX();
+        this.inputLocked = false;
+        
+        this.STORAGE_KEY = 'gimme_light_v2_save';
+        this.SAVE_VERSION = 3;
+        this.cheatMode=false;
+        this.debugMode=new URLSearchParams(window.location.search).get('debug')==='1';
+
+        this.initResetHandler();
+        this.initPanHandler();
+        const resize=()=>{this.cancelPan();this.setupLayout();this.check(true);};
+        window.addEventListener('resize',resize);
+        window.visualViewport?.addEventListener('resize',resize);
+
+        const cheatLevel=cheatLevelFromURL(window.location.search);
+        if(cheatLevel!==null) {
+            this.cheatMode=true;
+            this.lvl=cheatLevel;
+            this.start();
+        } else if (!this.loadProgress()) {
+            this.lvl=1; 
+            this.start();
+        }
+    }
+
+    get sandboxMode() { return this.cheatMode || this.debugMode; }
+
+    updateModeUI() {
+        document.getElementById('debug-btn').hidden=!this.debugMode;
+        document.body.classList.toggle('cheat-mode',this.sandboxMode);
+        document.getElementById('level-display').textContent=this.lvl;
+        document.getElementById('level-label').textContent=this.debugMode ? 'Debug level:' : this.cheatMode ? 'Cheat level:' : 'Level:';
+        document.getElementById('cheat-badge').hidden=!this.sandboxMode;
+        document.getElementById('next-button').textContent=this.cheatMode && !this.debugMode ? 'Return to progress' : 'Next';
+    }
+
+    initPanHandler() {
+        this.stage.addEventListener('pointerdown', e => {
+            if(!e.isPrimary || e.button!==0 || this.inputLocked || this.panSettling ||
+                !(this.spec.wrapX || this.spec.wrapY) || e.target.closest('#overlay')) return;
+            this.pan={id:e.pointerId, x:e.clientX, y:e.clientY, dx:0, dy:0, dragging:false};
+        });
+        this.stage.addEventListener('pointermove', e => {
+            const p=this.pan;
+            if(!p || p.id!==e.pointerId) return;
+            p.dx=this.spec.wrapX ? e.clientX-p.x : 0;
+            p.dy=this.spec.wrapY ? e.clientY-p.y : 0;
+            if(!p.dragging && Math.hypot(p.dx,p.dy)<8) return;
+            if(!p.dragging) {
+                p.dragging=true;
+                this.stage.setPointerCapture(e.pointerId);
+                this.createPanLayer();
+            }
+            e.preventDefault();
+            this.paintPan(p.dx,p.dy);
+        });
+        const finish=e=>{
+            const p=this.pan;
+            if(!p || p.id!==e.pointerId) return;
+            this.pan=null;
+            if(this.stage.hasPointerCapture(e.pointerId)) this.stage.releasePointerCapture(e.pointerId);
+            if(p.dragging) {
+                this.suppressClickUntil=performance.now()+400;
+                this.settlePan(p.dx,p.dy);
+            }
+        };
+        this.stage.addEventListener('pointerup',finish);
+        this.stage.addEventListener('pointercancel',finish);
+        this.stage.addEventListener('lostpointercapture',finish);
+        this.stage.addEventListener('pointerleave',e=>{
+            if(this.pan && !this.pan.dragging) this.pan=null;
+        });
+        this.stage.addEventListener('click', e=>{
+            if(this.panSettling || performance.now()<(this.suppressClickUntil || 0)) {
+                e.preventDefault();e.stopPropagation();
+            }
+        },true);
+        window.addEventListener('blur',()=>this.cancelPan());
+    }
+
+    createPanLayer() {
+        this.panLayer=document.createElement('div');
+        this.panLayer.className='pan-layer';
+        this.panCopies=[];
+        const xs=this.spec.wrapX ? [-1,0,1] : [0];
+        const ys=this.spec.wrapY ? [-1,0,1] : [0];
+        for(const y of ys) for(const x of xs) {
+            const copy=this.el.cloneNode(true);
+            copy.removeAttribute('id');copy.className='pan-copy';
+            copy.setAttribute('aria-hidden','true');
+            this.panLayer.appendChild(copy);this.panCopies.push({el:copy,x,y});
+        }
+        this.stage.appendChild(this.panLayer);
+        this.stage.classList.add('panning');
+    }
+
+    paintPan(dx,dy) {
+        const width=this.w*this.vfx.cellSize,height=this.h*this.vfx.cellSize;
+        // Centered modulo supports dragging through any number of full turns.
+        const wrap=(v,size)=>((v+size/2)%size+size)%size-size/2;
+        const x=this.spec.wrapX ? wrap(dx,width) : 0;
+        const y=this.spec.wrapY ? wrap(dy,height) : 0;
+        for(const copy of this.panCopies || [])
+            copy.el.style.transform=`translate3d(${x+copy.x*width}px,${y+copy.y*height}px,0)`;
+    }
+
+    settlePan(dx,dy) {
+        const cs=this.vfx.cellSize;
+        const sx=this.spec.wrapX ? Math.round(dx/cs) : 0;
+        const sy=this.spec.wrapY ? Math.round(dy/cs) : 0;
+        const start=performance.now();
+        this.panSettling=true;
+        const animate=now=>{
+            const t=Math.min(1,(now-start)/180),ease=1-Math.pow(1-t,3);
+            this.paintPan(dx+(sx*cs-dx)*ease,dy+(sy*cs-dy)*ease);
+            if(t<1) this.panFrame=requestAnimationFrame(animate);
+            else {
+                this.shiftField(sx,sy);
+                this.cancelPan();
+                this.haptic('tick');
+            }
+        };
+        this.panFrame=requestAnimationFrame(animate);
+    }
+
+    shiftField(sx,sy) {
+        sx=this.spec.wrapX ? sx : 0; sy=this.spec.wrapY ? sy : 0;
+        // Persist rotations before moving cells. Translating a wrapped graph preserves its solution.
+        this.saveProgress();
+        const mod=(v,n)=>(v%n+n)%n;
+        const previous=this.map;
+        this.map=Array.from({length:this.h},(_,y)=>Array.from({length:this.w},(_,x)=>
+            previous[mod(y-sy,this.h)][mod(x-sx,this.w)]));
+        this.el.classList.add('no-pop');
+        this.render();
+        this.vfx.particles=[];
+        this.check(true);
+        this.saveProgress();
+    }
+
+    cancelPan() {
+        cancelAnimationFrame(this.panFrame);
+        const p=this.pan;
+        this.pan=null;
+        if(p && this.stage.hasPointerCapture(p.id)) this.stage.releasePointerCapture(p.id);
+        this.panLayer?.remove();this.panLayer=null;this.panCopies=[];
+        this.panSettling=false;
+        this.stage.classList.remove('panning');
+    }
+
+    initResetHandler() {
+        const header = document.getElementById('game-header-stats');
+        let pressTimer;
+        let isPressing = false;
+
+        const startPress = (e) => {
+            if (this.sandboxMode) return;
+            if (e.type === 'mousedown' && e.button !== 0) return;
+            isPressing = true;
+            header.classList.add('reset-charging');
+            pressTimer = setTimeout(() => {
+                if (isPressing) {
+                    isPressing = false;
+                    header.classList.remove('reset-charging');
+                    if (confirm("Reset game progress and start from Level 1?")) {
+                        localStorage.removeItem(this.STORAGE_KEY);
+                        window.location.reload();
+                    }
+                }
+            }, 2000); 
+        };
+
+        const cancelPress = () => {
+            isPressing = false;
+            header.classList.remove('reset-charging');
+            clearTimeout(pressTimer);
+        };
+
+        header.addEventListener('mousedown', startPress);
+        header.addEventListener('touchstart', startPress);
+        header.addEventListener('mouseup', cancelPress);
+        header.addEventListener('mouseleave', cancelPress);
+        header.addEventListener('touchend', cancelPress);
+    }
+
+    saveProgress() {
+        if (this.cells && this.map) {
+            for(let y=0;y<this.h;y++){
+                for(let x=0;x<this.w;x++){
+                    this.map[y][x].rot = this.cells[y][x].vRot;
+                }
+            }
+        }
+        if(this.sandboxMode) return; // Sync in-memory rotations, but never touch normal progress.
+        const data = { generation: GENERATION_VERSION, v: this.SAVE_VERSION, lvl: this.lvl, map: this.map, spec: this.spec };
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+    }
+
+    loadProgress() {
+        try {
+            const raw = localStorage.getItem(this.STORAGE_KEY);
+            if (!raw) return false;
+            const data = JSON.parse(raw);
+            if(!Number.isSafeInteger(data.lvl) || data.lvl<1) return false;
+            if (data.v !== this.SAVE_VERSION || data.generation!==GENERATION_VERSION) return false; 
+            this.inputLocked=false;
+            this.lvl = data.lvl;
+            this.spec = data.spec || {template:0, wrapX:false, wrapY:false, spacing:3};
+            this.map = data.map; 
+            this.h = this.map.length;
+            this.w = this.map[0].length;
+            this.setupLayout();
+            document.getElementById('level-display').textContent=this.lvl;
+            this.render();
+            this.ov.classList.remove('visible');
+            this.el.classList.remove('level-complete');
+            this.check(true);
+            return true;
+        } catch (e) { return false; }
+    }
+
+    setupLayout() {
+        document.documentElement.style.setProperty('--viewport-height',`${window.visualViewport?.height || window.innerHeight}px`);
+        this.updateModeUI();
+        const {availW,availH} = this.availableSpace();
+        // Fractional cells let the complete board fit, even on small landscape screens.
+        const cs = Math.floor(Math.min(availW / this.w, availH / this.h, 80)*100)/100;
+        this.stage.style.touchAction = this.spec.wrapX && this.spec.wrapY ? 'none' : this.spec.wrapX ? 'pan-y' : this.spec.wrapY ? 'pan-x' : 'auto';
+        this.stage.classList.toggle('pannable', this.spec.wrapX || this.spec.wrapY);
+        document.documentElement.style.setProperty('--cell-base-size', `${cs}px`);
+        const pxW = (this.w * cs) + 'px';
+        const pxH = (this.h * cs) + 'px';
+        this.stage.style.width = pxW;
+        this.stage.style.height = pxH;
+        this.el.style.gridTemplateColumns = `repeat(${this.w}, ${cs}px)`;
+        this.el.style.gridTemplateRows = `repeat(${this.h}, ${cs}px)`;
+        this.el.style.backgroundSize = `${cs}px ${cs}px`;
+        this.gridLines.style.backgroundSize = `${cs}px ${cs}px`;
+        this.vfx.resize(this.w*cs, this.h*cs, cs);
+    }
+
+    availableSpace() {
+        const num=v=>parseFloat(v)||0;
+        const body=getComputedStyle(document.body), frame=getComputedStyle(this.cnt);
+        const wrapper=document.getElementById('game-wrapper');
+        const width=wrapper.clientWidth || Math.min(1000,window.innerWidth-num(body.paddingLeft)-num(body.paddingRight));
+        const height=wrapper.clientHeight || (window.visualViewport?.height || window.innerHeight)-num(body.paddingTop)-num(body.paddingBottom);
+        const outerHeight=id=>{
+            const el=document.getElementById(id);
+            if(el.hidden) return 0;
+            const css=getComputedStyle(el);
+            return el.offsetHeight+num(css.marginTop)+num(css.marginBottom);
+        };
+        const controls=outerHeight('game-header-stats')+outerHeight('cheat-badge')+outerHeight('debug-btn');
+        const frameW=num(frame.paddingLeft)+num(frame.paddingRight)+num(frame.borderLeftWidth)+num(frame.borderRightWidth);
+        const frameH=num(frame.paddingTop)+num(frame.paddingBottom)+num(frame.borderTopWidth)+num(frame.borderBottomWidth);
+        return {availW:Math.max(0,width-frameW-2),availH:Math.max(0,height-controls-frameH-2)};
+    }
+    start() {
+        this.cancelPan();
+        this.el.classList.remove('no-pop');
+        clearTimeout(this.winTimer);
+        ({spec:this.spec,w:this.w,h:this.h}=selectLevelLayout(this.lvl));
+        const active=fieldMask(this.w,this.h,this.spec).flat().filter(Boolean).length;
+        let nb = Math.min(7, 1 + Math.floor((this.lvl - 1) / 10), Math.max(1,Math.floor(active/10)));
+        this.inputLocked = false;
+        this.setupLayout();
+        document.getElementById('level-display').textContent=this.lvl;
+        this.map = this.gen.generate(this.w, this.h, nb, this.lvl, this.spec);
+        this.render();
+        this.ov.classList.remove('visible');
+        this.el.classList.remove('level-complete');
+        this.saveProgress(); 
+        this.check(true);
+    }
+    
+    resolve() {
+        this.cancelPan();
+        this.cells.forEach(row => row.forEach(c => {
+            c.vRot = c.correctRot;
+            c.inEl.style.transform = `rotate(${c.vRot * 90}deg)`;
+        }));
+        this.check(false);
+    }
+    
+    render() {
+        this.el.innerHTML='';
+        this.cells=[];
+        for(let y=0;y<this.h;y++){
+            let r=[];
+            for(let x=0;x<this.w;x++){
+                let d=this.map[y][x];
+                let cel=document.createElement('div'); cel.className='cell';
+                if(d.type===TILES.EMPTY) cel.classList.add('void');
+                else {
+                    cel.classList.add('active-cell');
+                    const edges=[];
+                    if(this.spec.wrapX && x===0) edges.push('left');
+                    if(this.spec.wrapX && x===this.w-1) edges.push('right');
+                    if(this.spec.wrapY && y===0) edges.push('top');
+                    if(this.spec.wrapY && y===this.h-1) edges.push('bottom');
+                    edges.forEach(edge=>{const mark=document.createElement('span');mark.className='wrap-edge '+edge;mark.setAttribute('data-dir',String(['top','right','bottom','left'].indexOf(edge)));cel.appendChild(mark);});
+                }
+                let inn=document.createElement('div'); inn.className='tile-inner';
+                
+                if (d.type === TILES.CORNER) cel.classList.add('corner');
+                else if (d.type === TILES.BRIDGE) cel.classList.add('bridge');
+                else if (d.type === TILES.D_CORNER) cel.classList.add('dcorner');
+                else if (d.type === TILES.BULB) cel.classList.add('bulb');
+                
+                inn.innerHTML=this.svg(d); inn.style.transform=`rotate(${d.rot*90}deg)`;
+                cel.appendChild(inn); this.el.appendChild(cel);
+                let obj={ x,y,type:d.type, vRot:d.rot, correctRot:d.correctRot, el:cel,inEl:inn, color:d.color };
+                cel.onclick=(e)=>this.rot(obj, e);
+                r.push(obj);
+            }
+            this.cells.push(r);
+        }
+    }
+    svg(d) {
+        const t=d.type, c=TILE_CONNS[t];
+        let bg = '', fg = '';
+        const addPath = (dAttr, grp, dir, cap) => {
+            const capClass = cap ? 'cap-butt' : '';
+            bg += `<path d="${dAttr}" class="wire-bg ${capClass}" />`;
+            fg += `<path d="${dAttr}" class="wire-path wire-group-${grp} wire-${dir} ${capClass}" />`;
+        };
+
+        if(t===TILES.BRIDGE) {
+            // Vertical (Group 0): 0 -> 2
+            bg += `<path d="M 50 -2 L 50 102" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 -2 L 50 102" class="wire-path wire-group-0 wire-0 wire-2 cap-butt" />`;
+
+            // Horizontal (Group 1): 3 -> 1
+            const hopPath = "M -2 50 L 30 50 C 30 15 70 15 70 50 L 102 50";
+            fg += `<path d="${hopPath}" class="wire-bg cap-butt" />`;
+            fg += `<path d="${hopPath}" class="wire-path wire-group-1 wire-3 wire-1 cap-butt" />`;
+        } 
+        else if(t===TILES.D_CORNER) {
+            // Top-Left (3->0)
+            bg += `<path d="M -2 50 Q 50 50 50 -2" class="wire-bg cap-butt" />`;
+            fg += `<path d="M -2 50 Q 50 50 50 -2" class="wire-path wire-group-0 wire-3 wire-0 cap-butt" />`;
+            
+            // Bot-Right (2->1)
+            bg += `<path d="M 50 102 Q 50 50 102 50" class="wire-bg cap-butt" />`;
+            fg += `<path d="M 50 102 Q 50 50 102 50" class="wire-path wire-group-1 wire-2 wire-1 cap-butt" />`;
+        }
+        else if(t===TILES.CORNER) {
+            let p1=-1, p2=-1;
+            for(let i=0; i<4; i++) if(c[i]) { if(p1===-1) p1=i; else p2=i; }
+            const R = 20; const C = 50; let dStr = "";
+            
+            if (p1===0 && p2===1) dStr = `M 50 -2 L 50 ${C-R} Q 50 50 ${C+R} 50 L 102 50`; // 0->1
+            else if (p1===1 && p2===2) dStr = `M 102 50 L ${C+R} 50 Q 50 50 50 ${C+R} L 50 102`; // 1->2
+            else if (p1===2 && p2===3) dStr = `M 50 102 L 50 ${C+R} Q 50 50 ${C-R} 50 L -2 50`; // 2->3
+            else if (p1===0 && p2===3) dStr = `M -2 50 L ${C-R} 50 Q 50 50 50 ${C-R} L 50 -2`; // 3->0
+
+            bg += `<path d="${dStr}" class="wire-bg cap-butt" />`;
+            fg += `<path d="${dStr}" class="wire-path wire-group-0 wire-${p1} wire-${p2} cap-butt" />`;
+        }
+        else if(t===TILES.BATTERY) {
+            fg += `<rect x="32" y="20" width="36" height="60" rx="3" class="bat-case" />
+                   <rect x="42" y="14" width="16" height="6" rx="1" class="bat-tip" />
+                   <polygon points="55,35 42,50 50,50 45,65 58,50 50,50" class="bat-icon" />`;
+            addPath("M 50 14 L 50 -2", 0, "0", true);
+        } 
+        else if(t===TILES.BULB) {
+            // Draw Center -> Edge (75 -> 102)
+            // This connects to Pin 2
+            addPath("M 50 75 L 50 102", 0, "2", true);
+            fg += `<g transform="translate(12.5, 7.5) scale(0.75)" style="--bulb-color: ${d.color}">
+                    <path d="M 45 75 L 45 55 L 50 45 L 55 55 L 55 75" class="bulb-filament" />
+                    <path d="M 40 75 Q 15 75 15 45 A 20 20 0 1 1 85 45 Q 85 75 60 75 Z" class="bulb-glass" />
+                    <rect x="38" y="75" width="24" height="16" rx="2" class="bulb-cap" />
+                    <line x1="38" y1="80" x2="62" y2="80" class="bulb-thread" />
+                    <line x1="38" y1="86" x2="62" y2="86" class="bulb-thread" />
+                    <path d="M 44 91 L 56 91 L 50 96 Z" fill="#555" />
+                   </g>`;
+        }
+        else {
+            // Hubs: Always Center -> Edge
+            if(c[0]) addPath("M 50 50 L 50 -2", 0, "0", true);
+            if(c[1]) addPath("M 50 50 L 102 50", 0, "1", true);
+            if(c[2]) addPath("M 50 50 L 50 102", 0, "2", true);
+            if(c[3]) addPath("M 50 50 L -2 50", 0, "3", true);
+            
+            if(t!==TILES.EMPTY && t!==TILES.LINE) {
+                bg += `<circle cx="50" cy="50" r="7" class="wire-bg" fill="none" stroke-width="18"/>`;
+                fg += `<circle cx="50" cy="50" r="7" class="wire-path wire-group-0" fill="currentColor" stroke="none"/>`;
+            }
+        }
+        return `<svg viewBox="0 0 100 100" width="100%" height="100%">${bg}${fg}</svg>`;
+    }
+    rot(c, e) {
+        if(this.inputLocked || this.pan || this.panSettling || performance.now() < (this.suppressClickUntil || 0) || c.type===TILES.EMPTY || this.ov.classList.contains('visible')) return;
+        this.audio.init(); this.audio.play('rotate');
+        c.vRot++; c.inEl.style.transform=`rotate(${c.vRot*90}deg)`;
+        const cx = c.x * this.vfx.cellSize + this.vfx.cellSize/2;
+        const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
+        this.vfx.spawn(cx, cy, 'spark');
+        this.haptic('tick');
+        this.saveProgress(); 
+        this.check(false);
+    }
+    haptic(type) {
+        if(!navigator.vibrate) return;
+        if(type==='tick') navigator.vibrate(10);
+        else if(type==='zap') navigator.vibrate([50, 30, 50]);
+        else if(type==='win') navigator.vibrate([30, 50, 30, 50, 100]);
+    }
+    getLocalGroup(type, lp) {
+        if (!TILE_CONNS[type][lp]) return -1;
+        if (type === TILES.BRIDGE) return (lp % 2 === 0) ? 0 : 1; 
+        if (type === TILES.D_CORNER) return (lp===0 || lp===3) ? 0 : 1; 
+        return 0;
+    }
+    getGlobalGroup(type, rot, globalDir) {
+        let lp = (globalDir - rot + 400) % 4;
+        return this.getLocalGroup(type, lp);
+    }
+    check(silent) {
+        let bulbs=0, lit=0, short=false;
+        let litBulbsArr = []; 
+        this.cells.forEach(r=>r.forEach(c=>{
+            // Clear all status classes, including specific wire reversals
+            c.el.classList.remove('powered', 'short-circuit', 'flowing', 
+                'pg-0', 'pg-1', 'sc-0', 'sc-1',
+                'in-g0-0','in-g0-1','in-g0-2','in-g0-3','in-g1-0','in-g1-1','in-g1-2','in-g1-3'
+            );
+            // Clear all manually added reverse classes
+            c.el.querySelectorAll('.wire-path').forEach(wp => wp.classList.remove('reverse-flow'));
+
+            c.el.style.removeProperty('--dist');
+            c.visGroups = 0; c.par = null;
+            if(c.type===TILES.BULB) bulbs++;
+        }));
+        let q = [];
+        for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) {
+            let c = this.cells[y][x];
+            if(c.type === TILES.BATTERY) {
+                c.visGroups |= 1; c.el.classList.add('pg-0');
+                q.push({c: c, dist: 0});
+            }
+        }
+        while(q.length > 0) {
+            let {c, dist} = q.shift();
+            let groups = [];
+            if(c.visGroups & 1) groups.push(0);
+            if(c.visGroups & 2) groups.push(1);
+            groups.forEach(grp => {
+                for(let lp=0; lp<4; lp++) {
+                    if(this.getLocalGroup(c.type, lp) === grp) {
+                        let globalDir = (lp + c.vRot) % 4;
+                        let {x:nx,y:ny} = neighbor(c.x,c.y,globalDir,this.w,this.h,this.spec);
+                        if(nx>=0 && nx<this.w && ny>=0 && ny<this.h) {
+                            let nextC = this.cells[ny][nx];
+                            let entryDir = (globalDir + 2) % 4;
+                            let nextGrp = this.getGlobalGroup(nextC.type, nextC.vRot, entryDir);
+                            if(nextGrp !== -1) {
+                                if(!(nextC.visGroups & (1 << nextGrp))) {
+                                    nextC.visGroups |= (1 << nextGrp);
+                                    nextC.el.classList.add('pg-'+nextGrp);
+                                    let localEntry = (entryDir - nextC.vRot + 400) % 4;
+                                    nextC.el.classList.add(`in-g${nextGrp}-${localEntry}`);
+                                    
+                                    // === LOGIC FIX: DIRECT JS REVERSAL ===
+                                    // Instead of complex CSS rules, we directly apply 'reverse-flow' class
+                                    // to the specific wire-path element if the flow opposes drawing direction.
+                                    
+                                    const t = nextC.type;
+                                    const le = localEntry; 
+                                    let needRev = false;
+                                    let targetWire = null;
+
+                                    if (t === TILES.BRIDGE) {
+                                        // Vert (Group 0): 0->2. Entry 2 is Reverse.
+                                        if (nextGrp===0 && le===2) needRev=true;
+                                        // Horz (Group 1): 3->1. Entry 1 is Reverse.
+                                        if (nextGrp===1 && le===1) needRev=true;
+                                        // Target specific wire group
+                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                    } 
+                                    else if (t === TILES.D_CORNER) {
+                                        // G0: 3->0. Entry 0 is Rev.
+                                        if (nextGrp===0 && le===0) needRev=true;
+                                        // G1: 2->1. Entry 1 is Rev.
+                                        if (nextGrp===1 && le===1) needRev=true;
+                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                    }
+                                    else if (t === TILES.CORNER) {
+                                        // 0->1, 1->2, 2->3, 3->0
+                                        // If entry is at 'end' of segment, Rev.
+                                        // Get P1, P2 (ordered for 0,1 1,2 2,3 but special 3,0)
+                                        let p1=-1, p2=-1;
+                                        for(let i=0; i<4; i++) if(TILE_CONNS[t][i]) { if(p1===-1) p1=i; else p2=i; }
+                                        
+                                        if (p1===0 && p2===3) { if(le===0) needRev=true; } // 3->0
+                                        else { if(le===p2) needRev=true; } // p1->p2
+                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                    }
+                                    else if (t === TILES.BULB) {
+                                        // Center->2. Entry is 2. Always Rev.
+                                        needRev = true; 
+                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                    }
+                                    else {
+                                        // Hubs (Line, Tee, Cross)
+                                        // Center -> Out. Entry is at Out. Always Rev on THAT wire.
+                                        // But hub has multiple wires. We need to find the specific one connected to 'le'.
+                                        targetWire = nextC.el.querySelector(`.wire-group-0.wire-${le}`);
+                                        if (targetWire) needRev = true;
+                                    }
+
+                                    if (needRev && targetWire) {
+                                        targetWire.classList.add('reverse-flow');
+                                    }
+
+                                    if(nextC.type!==TILES.BATTERY) nextC.el.style.setProperty('--dist', dist+1);
+                                    if(nextC.type===TILES.BULB) { lit++; litBulbsArr.push(nextC); }
+                                    q.push({c: nextC, dist: dist+1});
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        let visitedSC = new Set();
+        for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) {
+            let start = this.cells[y][x];
+            [0, 1].forEach(g => {
+                if((start.visGroups & (1<<g)) && !visitedSC.has(`${x},${y},${g}`)) {
+                    let qS = [{c: start, grp: g}];
+                    visitedSC.add(`${x},${y},${g}`);
+                    let batsFound = 0;
+                    let pathCells = [];
+                    if(start.type === TILES.BATTERY) batsFound++;
+                    let head = 0;
+                    while(head < qS.length) {
+                        let {c: curr, grp: cGrp} = qS[head++];
+                        pathCells.push({c: curr, grp: cGrp});
+                        for(let lp=0; lp<4; lp++) {
+                            if(this.getLocalGroup(curr.type, lp) === cGrp) {
+                                let globalDir = (lp + curr.vRot) % 4;
+                                let {x:nx,y:ny} = neighbor(curr.x,curr.y,globalDir,this.w,this.h,this.spec);
+                                if(nx>=0 && nx<this.w && ny>=0 && ny<this.h) {
+                                    let next = this.cells[ny][nx];
+                                    let entryDir = (globalDir + 2) % 4;
+                                    let nGrp = this.getGlobalGroup(next.type, next.vRot, entryDir);
+                                    if(nGrp !== -1 && (next.visGroups & (1<<nGrp))) {
+                                        let key = `${nx},${ny},${nGrp}`;
+                                        if(!visitedSC.has(key)) {
+                                            visitedSC.add(key);
+                                            if(next.type === TILES.BATTERY) batsFound++;
+                                            qS.push({c: next, grp: nGrp});
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if(batsFound > 1) {
+                        short = true;
+                        pathCells.forEach(item => {
+                            item.c.el.classList.add('sc-' + item.grp);
+                            if(Math.random()>0.7) this.vfx.spawn(item.c.x*this.vfx.cellSize+this.vfx.cellSize/2, item.c.y*this.vfx.cellSize+this.vfx.cellSize/2, 'zap');
+                        });
+                    }
+                }
+            });
+        }
+        this.cells.forEach(row=>row.forEach(c=>{
+            c.el.querySelectorAll('.wrap-edge').forEach(mark=>{
+                const d=Number(mark.getAttribute('data-dir'));
+                const p=neighbor(c.x,c.y,d,this.w,this.h,this.spec);
+                const other=this.cells[p.y]?.[p.x];
+                const otherGroup=other ? this.getGlobalGroup(other.type,other.vRot,(d+2)%4) : -1;
+                // A hint about the opposite contact, even before this cell is connected.
+                const on=otherGroup>=0 && (other.visGroups&(1<<otherGroup)) &&
+                    !other.el.classList.contains('sc-'+otherGroup);
+                mark.classList.toggle('edge-powered',!!on);
+            });
+        }));
+        this.vfx.updateLight(litBulbsArr);
+        if(!silent){
+            if(short && !this.short) {
+                this.audio.play('zap'); this.haptic('zap');
+                this.cnt.classList.remove('shaking'); void this.cnt.offsetWidth; this.cnt.classList.add('shaking');
+            }
+            if(lit>this.prevLit) this.audio.play('on'); else if(lit<this.prevLit) this.audio.play('off');
+        }
+        this.short=short; this.prevLit=lit;
+        
+        clearTimeout(this.winTimer);
+        if(lit===bulbs && bulbs>0 && !short){
+            this.inputLocked = true;
+            this.winTimer = setTimeout(()=>{ 
+                this.audio.play('win'); this.haptic('win');
+                this.ov.classList.add('visible'); this.el.classList.add('level-complete');
+                litBulbsArr.forEach(b => {
+                     const cx = b.x * this.vfx.cellSize + this.vfx.cellSize/2;
+                     const cy = b.y * this.vfx.cellSize + this.vfx.cellSize/2;
+                     this.vfx.spawn(cx, cy, 'win', b.color);
+                });
+            }, 300);
+        }
+    }
+    exitSandbox() {
+        if(!this.sandboxMode) return;
+        this.cancelPan();clearTimeout(this.winTimer);
+        this.debugMode=false;this.cheatMode=false;
+        const url=new URL(window.location.href);
+        url.searchParams.delete('level');url.searchParams.delete('debug');
+        window.history.replaceState(null,'',url.href);
+        if(!this.loadProgress()) {this.lvl=1;this.start();}
+    }
+    nextLevel() {
+        if(this.cheatMode && !this.debugMode) {this.exitSandbox();return;}
+        this.lvl=Math.min(Number.MAX_SAFE_INTEGER,this.lvl+1); 
+        this.start(); 
+    }
+}
+window.game = new Game();
+</script>
+</body>
+</html>
