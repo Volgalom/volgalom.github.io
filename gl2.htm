@@ -357,10 +357,15 @@ function cheatLevelFromURL(search) {
 function fieldSpec(level) {
     // Candidate shapes repeat; sieves are deferred until their pattern fits the budget and screen.
     const index = (level - 1) % 9, cycle = Math.floor((level - 1) / 9);
-    const template = [0,1,2,6,3,4,5,7,0][index];
-    const torus = index === 8 || (cycle % 2 === 1 && template > 0 && template !== 7);
-    return {template, wrapX:torus || (template===7 && cycle%2===0),
-        wrapY:torus || (template===7 && cycle%2===1), spacing:2+cycle%4};
+    let template = [0,1,2,6,3,4,5,7,0][index];
+    // Introduce each wrapping mechanic explicitly, then keep the existing rotation.
+    if(level===30) return {template:7,wrapX:true,wrapY:false,spacing:2+cycle%4};
+    if(level===50) return {template:0,wrapX:true,wrapY:true,spacing:2+cycle%4};
+    if(level<30 && template===7) template=0;
+    const torus = level>=50 && (index===8 || (cycle%2===1 && template>0 && template!==7));
+    const ring = level>=30 && template===7;
+    return {template, wrapX:torus || (ring && cycle%2===0),
+        wrapY:torus || (ring && cycle%2===1), spacing:2+cycle%4};
 }
 function neighbor(x,y,d,w,h,spec) {
     let nx=x+DX[d], ny=y+DY[d];
