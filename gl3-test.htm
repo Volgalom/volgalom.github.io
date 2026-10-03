@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gimme Light!</title>
+    <title>Gimme Light! — Diagnostics</title>
     <style>
         :root {
             --bg-color: #08140e;
@@ -377,6 +377,28 @@
         .fx-lite.level-complete .pg-0 .bulb-glass,.fx-lite.level-complete .pg-1 .bulb-glass {
             animation:none; }
         @media (prefers-reduced-motion:reduce) { .fx-lite .bulb-glass {animation:none !important;} }
+
+        #diag-open {font:inherit; background:#203c2c;color:#fff;border:1px solid #52735d;border-radius:4px;padding:5px;}
+        #diag-panel {position:fixed;z-index:1000;inset:auto 8px 8px;max-height:85dvh;overflow:auto;
+          background:#102019f5;color:#e3eee6;border:1px solid #557463;border-radius:8px;padding:12px;
+          font:12px/1.4 system-ui;box-shadow:0 0 20px #000;}
+        #diag-panel button,#diag-panel input {font:inherit;padding:7px;margin:3px;}
+        #diag-switches {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
+        #diag-switches label {display:flex;align-items:center;gap:3px;}
+        #diag-summary {white-space:pre-wrap;font:11px/1.4 monospace;}
+        #diag-report {width:100%;height:35vh;font:11px monospace;}
+        .diag-no-filters #game-stage *, .diag-no-filters #game-stage *::before,
+        .diag-no-filters #game-stage *::after {filter:none !important;}
+        .diag-no-shadows #game-container,.diag-no-shadows #game-container *,
+        .diag-no-shadows #game-container::after {box-shadow:none !important;text-shadow:none !important;}
+        .diag-no-light #glow-layer {display:none !important;}
+        .diag-no-flow .wire-path {animation:none !important;stroke-dasharray:none !important;}
+        .diag-no-motion #game-stage * {animation:none !important;transition:none !important;}
+        .diag-no-svg #game-stage svg {display:none !important;}
+        .diag-no-pop .cell {animation:none !important;}
+        .diag-flat #game-stage svg {overflow:hidden !important;}
+        .diag-no-hints .wrap-edge {display:none !important;}
+        .diag-no-layers .pan-copy {will-change:auto !important;}
     </style>
 </head>
 <body>
@@ -407,16 +429,32 @@
         <div id="effects-controls">
             <label for="effects-mode">Effects:</label>
             <select id="effects-mode" aria-label="Graphics quality">
-                <option value="auto">Auto</option><option value="full">Full</option><option value="lite">Light</option>
+                <option value="full">Full</option><option value="lite">Light</option>
             </select>
+            <button id="diag-open" type="button">Диагностика</button>
             <span id="performance-status" hidden title="Estimated frame rate from requestAnimationFrame"></span>
         </div>
         <div id="debug-btn" hidden>
             <button type="button" class="dbg" onclick="window.game.resolve()">Resolve</button>
             <button type="button" class="dbg" onclick="window.game.nextLevel()">Skip</button>
-            <button type="button" class="dbg" onclick="window.game.exitSandbox()">Exit debug</button>
+            
         </div>
     </div>
+
+
+    <section id="diag-panel" hidden aria-label="Диагностика производительности">
+      <strong>Диагностика · прогресс не сохраняется · автоматика выключена</strong>
+      <button id="diag-close">Закрыть</button>
+      <p>Меняйте один переключатель, закрывайте панель, повторяйте те же действия 10 секунд.
+      После теста нажмите «Записать результат». Перед следующим тестом — «Исходные эффекты».</p>
+      <div><label>Уровень <input id="diag-level" type="number" min="1" value="5558" style="width:95px"></label>
+      <button id="diag-load">Загрузить заново</button><button id="diag-solve">Resolve</button></div>
+      <div id="diag-switches"></div>
+      <div><button id="diag-baseline">Исходные эффекты</button><button id="diag-record">Записать результат</button>
+      <button id="diag-export">Скачать отчёт</button><button id="diag-show">Показать текст отчёта</button></div>
+      <p id="diag-feedback"></p><pre id="diag-summary"></pre>
+      <textarea id="diag-report" readonly hidden aria-label="Текст отчёта для копирования"></textarea>
+    </section>
 
 <script>
 /** CONSTANTS */
@@ -794,7 +832,7 @@ class VisualFX {
 /** ADAPTIVE EFFECTS: changes rendering only, never level data or progress. */
 class EffectQuality {
     constructor(game) {
-        this.game=game;this.mode='auto';this.tier=0;this.autoTier=0;
+        this.game=game;this.mode='full';this.tier=0;this.autoTier=0;
         this.frame=null;this.last=0;this.samples=[];this.epoch=performance.now();
         this.grace=this.epoch+1200;this.sprites=new Map();this.dirty=true;
         this.select=document.getElementById('effects-mode');
@@ -1171,7 +1209,7 @@ class Game {
         this.STORAGE_KEY = 'gimme_light_v3_save';
         this.SAVE_VERSION = 1;
         this.cheatMode=false;
-        this.debugMode=new URLSearchParams(window.location.search).get('debug')==='1';
+        this.debugMode=true;
 
         this.initResetHandler();
         this.initPanHandler();
@@ -1192,7 +1230,7 @@ class Game {
         window.addEventListener('resize',resize);
         window.visualViewport?.addEventListener('resize',resize);
 
-        const cheatLevel=cheatLevelFromURL(window.location.search);
+        const cheatLevel=cheatLevelFromURL(window.location.search) || 5558;
         if(cheatLevel!==null) {
             this.cheatMode=true;
             this.lvl=cheatLevel;
@@ -1204,7 +1242,7 @@ class Game {
         this.effects=new EffectQuality(this);
     }
 
-    get sandboxMode() { return this.cheatMode || this.debugMode; }
+    get sandboxMode() { return true; }
 
     updateModeUI() {
         document.getElementById('debug-btn').hidden=!this.debugMode;
@@ -1600,7 +1638,11 @@ class Game {
         const cx = c.x * this.vfx.cellSize + this.vfx.cellSize/2;
         const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
         this.vfx.spawn(cx,cy,'spark',c.type===TILES.BULB ? c.color : undefined);
-        c.el.classList.remove('tapped');void c.el.offsetWidth;c.el.classList.add('tapped');
+        if(!window.diagnostics?.flags['no-tap']) {
+            c.el.classList.remove('tapped');
+            window.diagnostics.measure('rot.layoutFlush',()=>c.el.offsetWidth);
+            c.el.classList.add('tapped');
+        }
         this.haptic('tick');
         this.saveProgress(); 
         this.check(false);
@@ -1932,7 +1974,167 @@ class Game {
         }); 
     }
 }
-window.game = new Game();
+
+/** Diagnostic build: bounded in-memory recording, no progress/storage writes. */
+class GameDiagnostics {
+    constructor() {
+        this.flags={};this.events=[];this.runs=[];this.stats={};this.frames=[];
+        this.started=performance.now();this.last=0;this.lastUI=0;this.action=0;this.longTasks=0;
+        this.panel=document.getElementById('diag-panel');
+        this.summary=document.getElementById('diag-summary');
+        this.reportBox=document.getElementById('diag-report');
+        this.options=[
+          ['no-filters','Без SVG/CSS-фильтров'],['no-light','Без освещения поля'],
+          ['no-flow','Без движения тока'],['no-motion','Без анимаций SVG/CSS'],
+          ['no-svg','Скрыть всю SVG-графику'],['no-shadows','Без теней рамки/клеток'],
+          ['no-particles','Без частиц'],['no-tap','Без вспышки нажатия и layout flush'],
+          ['no-pop','Без появления клеток'],['no-clones','Прокрутка без SVG-копий'],
+          ['no-commit','Не перестраивать поле при отпускании'],['flat','Обрезать SVG по границам клетки'],
+          ['no-hints','Без полосок на краях'],['no-layers','2D-прокрутка без will-change']
+        ];
+        this.install();
+        try {
+            this.observer=new PerformanceObserver(list=>{
+                for(const entry of list.getEntries()) {
+                    this.longTasks++;this.log('longtask',{ms:entry.duration});
+                }
+            });
+            this.observer.observe({entryTypes:['longtask']});
+            this.longTaskSupport=true;
+        } catch(_) {this.longTaskSupport=false;}
+    }
+    log(name,data={}) {
+        this.events.push({t:Math.round(performance.now()-this.started),name,...data});
+        if(this.events.length>180) this.events.shift();
+    }
+    measure(name,fn) {
+        const start=performance.now();
+        try {return fn();} finally {
+            const ms=performance.now()-start;
+            const v=this.stats[name] || (this.stats[name]={count:0,total:0,max:0,last:0});
+            v.count++;v.total+=ms;v.max=Math.max(v.max,ms);v.last=ms;
+            if(ms>25 || ['rot','createPanLayer','shiftField','render','cancelPan'].includes(name))this.log(name,{ms});
+        }
+    }
+    afterFrames(name) {
+        const start=performance.now(),id=++this.action;
+        requestAnimationFrame(()=>{
+            this.log(name+' → rAF1',{id,ms:performance.now()-start});
+            requestAnimationFrame(()=>this.log(name+' → rAF2',{id,ms:performance.now()-start}));
+        });
+    }
+    install() {
+        const diag=this;
+        for(const name of ['rot','createPanLayer','paintPan','settlePan','shiftField','cancelPan','render','check','saveProgress','setupLayout','highlightPoweredLoops']) {
+            const original=Game.prototype[name];
+            Game.prototype[name]=function(...args) {
+                if(name==='createPanLayer' && diag.flags['no-clones']) {
+                    this.panCopies=[];diag.log('createPanLayer skipped');return;
+                }
+                if(name==='shiftField' && diag.flags['no-commit']) {
+                    diag.log('shiftField skipped');return;
+                }
+                const result=diag.measure(name,()=>original.apply(this,args));
+                if(name==='paintPan' && diag.flags['no-layers'])
+                    for(const copy of this.panCopies || [])copy.el.style.transform=copy.el.style.transform.replace('translate3d(','translate(').replace(',0)',')');
+                if(['rot','createPanLayer','shiftField','cancelPan'].includes(name))diag.afterFrames(name);
+                return result;
+            };
+        }
+        for(const name of ['updateLight','loop']) {
+            const original=VisualFX.prototype[name];
+            VisualFX.prototype[name]=function(...args) {return diag.measure('VFX.'+name,()=>original.apply(this,args));};
+        }
+        const spawn=VisualFX.prototype.spawn;
+        VisualFX.prototype.spawn=function(...args) {if(!diag.flags['no-particles'])return spawn.apply(this,args);};
+        const draw=EffectQuality.prototype.draw;
+        EffectQuality.prototype.draw=function(...args) {
+            if(diag.flags['no-light'] || diag.flags['no-motion']) {this.dirty=false;return;}
+            return diag.measure('Light.draw',()=>draw.apply(this,args));
+        };
+    }
+    attach(game) {
+        this.game=game;
+        const switches=document.getElementById('diag-switches');
+        for(const [key,label] of this.options) {
+            const row=document.createElement('label'),input=document.createElement('input');input.type='checkbox';
+            input.dataset.flag=key;input.addEventListener('change',()=>{
+                this.flags[key]=input.checked;document.body.classList.toggle('diag-'+key,input.checked);
+                if(key==='no-particles') {game.vfx.particles=[];game.vfx.ctx.clearRect(0,0,game.vfx.canvas.width,game.vfx.canvas.height);}
+                game.effects.dirty=true;game.effects.wake();
+                this.log('switch',{key,on:input.checked});this.resetWindow();
+            });row.appendChild(input);row.appendChild(document.createTextNode(label));switches.appendChild(row);
+        }
+        const on=(id,fn)=>document.getElementById(id).addEventListener('click',fn);
+        on('diag-open',()=>{this.panel.hidden=false;this.show();});
+        on('diag-close',()=>{this.panel.hidden=true;this.resetWindow();});
+        on('diag-record',()=>{this.runs.push(this.snapshot());if(this.runs.length>30)this.runs.shift();
+            document.getElementById('diag-feedback').textContent='Результат записан: '+this.runs.length;});
+        on('diag-baseline',()=>{
+            for(const [key] of this.options)document.body.classList.remove('diag-'+key);
+            this.flags={};switches.querySelectorAll('input').forEach(input=>input.checked=false);
+            game.effects.select.value='full';game.effects.setMode('full');this.resetWindow();this.log('baseline');
+        });
+        on('diag-load',()=>{
+            const level=Number(document.getElementById('diag-level').value);
+            if(!Number.isSafeInteger(level)||level<1)return;
+            game.lvl=level;game.start();this.resetWindow();this.log('load',{level});
+        });
+        on('diag-solve',()=>game.resolve());
+        on('diag-show',()=>{this.reportBox.hidden=false;this.reportBox.value=this.report();this.reportBox.focus();this.reportBox.select();});
+        on('diag-export',()=>{
+            const blob=new Blob([this.report()],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob);
+            const link=document.createElement('a');link.href=url;link.download='gimme-light-diagnostics-'+game.lvl+'.txt';
+            document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+        });
+        document.getElementById('diag-level').value=game.lvl;
+        game.effects.select.addEventListener('change',()=>{this.log('mode',{mode:game.effects.mode});this.resetWindow();});
+        for(const type of ['pointerdown','pointerup','pointercancel','click'])game.stage.addEventListener(type,e=>{
+            const delay=performance.now()-e.timeStamp;
+            this.log(type,{queueMs:delay>=0&&delay<60000?delay:null});
+        },true);
+        document.addEventListener('visibilitychange',()=>{this.last=0;this.log(document.hidden?'hidden':'visible');});
+        this.tick=this.tick.bind(this);requestAnimationFrame(this.tick);
+        this.resetWindow();
+    }
+    resetWindow() {this.frames=[];this.stats={};this.longTasks=0;this.windowStart=performance.now();this.last=0;}
+    tick(now) {
+        if(!document.hidden && this.panel.hidden) {
+            if(this.last) {this.frames.push(now-this.last);if(this.frames.length>600)this.frames.shift();}
+            this.last=now;
+        } else this.last=0;
+        if(now-this.lastUI>1500) {this.lastUI=now;if(!this.panel.hidden)this.show();}
+        requestAnimationFrame(this.tick);
+    }
+    snapshot() {
+        const frames=this.frames.slice().sort((a,b)=>a-b),sum=this.frames.reduce((a,b)=>a+b,0);
+        const g=this.game;
+        return {level:g.lvl,solved:!!g.completed,width:g.w,height:g.h,cellSize:g.vfx.cellSize,
+            lamps:g.cells.flat().filter(c=>c.type===TILES.BULB).length,lit:g.vfx.lights.size,
+            wrapX:g.spec.wrapX,wrapY:g.spec.wrapY,mode:g.effects.mode,tier:g.effects.tier,
+            switches:{...this.flags},seconds:(performance.now()-this.windowStart)/1000,
+            raf:{samples:frames.length,fps:sum?1000*frames.length/sum:null,p95:frames[Math.floor(frames.length*.95)]||0,max:frames[frames.length-1]||0},
+            longTasks:this.longTasks,methods:JSON.parse(JSON.stringify(this.stats)),events:this.events.slice()};
+    }
+    show() {
+        const v=this.snapshot();this.summary.textContent=`Уровень ${v.level} · ${v.width}×${v.height} · ламп ${v.lamps} / горит ${v.lit}
+Оценка rAF: ${v.raf.fps===null?'—':v.raf.fps.toFixed(1)} fps · p95 ${v.raf.p95.toFixed(0)} мс · max ${v.raf.max.toFixed(0)} мс
+Long Tasks: ${this.longTaskSupport?v.longTasks:'не поддерживаются браузером'}
+Замеры JS (включают вложенные вызовы):
+`+Object.entries(v.methods).map(([k,m])=>`${k}: last ${m.last.toFixed(1)}, max ${m.max.toFixed(1)} мс, вызовов ${m.count}`).join('\n');
+    }
+    report() {
+        return JSON.stringify({build:'gimme-light-v3-diagnostic-1',date:new Date().toISOString(),
+            userAgent:navigator.userAgent,dpr:window.devicePixelRatio,viewport:[window.innerWidth,window.innerHeight],
+            longTaskSupported:this.longTaskSupport,
+            note:'rAF intervals are not presented-frame/GPU timings. Method timings are inclusive. Panel-open frames are excluded. Tests never save progress.',
+            runs:this.runs,current:this.snapshot()},null,2);
+    }
+}
+window.diagnostics=new GameDiagnostics();
+window.game=new Game();
+window.diagnostics.attach(window.game);
+
 </script>
 </body>
 </html>
