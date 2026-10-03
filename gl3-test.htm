@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gimme Light! — Diagnostics</title>
+    <title>Gimme Light!</title>
     <style>
         :root {
             --bg-color: #08140e;
@@ -247,17 +247,6 @@
             animation:victoryAura 2.8s ease-in-out infinite;
             animation-delay:var(--wave-delay,0s);
         }
-        #debug-btn {
-            display: flex;
-            justify-content: center;
-            gap: 10px; margin-top: 10px; flex-shrink: 0;
-            position: relative; z-index: 100;
-        }
-        .dbg {
-            background: #34495e; color: #bdc3c7; font-size: 0.8rem; padding: 8px 12px;
-            border: 1px solid #555; min-height: 44px; border-radius: 4px; cursor: pointer;
-        }
-        .dbg:hover { opacity: 1; }
 
         @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
         .cell { animation: popIn 0.3s backwards; }
@@ -290,24 +279,13 @@
         .panning #glow-layer { opacity:0 !important; transition:none; }
         .pan-layer { position:absolute; inset:0; overflow:hidden; z-index:6; pointer-events:none;
             box-shadow:inset 0 0 20px #56d9e822; }
-        .pan-copy { position:absolute; top:0; left:0; display:grid; gap:0; will-change:transform; }
-        .pan-copy .cell, .no-pop .cell { animation:none; }
-        .pan-copy .wrap-edge { display:none; }
-        .pan-copy .cell::after { display:none; }
+
+        .no-pop .cell { animation:none; }
         /* Freeze effects in the visible field copies until snapping ends. */
         #game-stage.panning *, .page-hidden * { animation-play-state:paused !important; }
-        .panning .pan-copy .wire-path { stroke-dasharray:none !important; }
-        .panning .pan-copy svg * { filter:none !important; transition:none !important; }
 
-        #cheat-badge { color:#ecb9ff; background:#61277b44; border:1px solid #b868db;
-            border-radius:20px; padding:3px 12px; margin-bottom:5px; font-size:11px; letter-spacing:1px; }
-        .cheat-mode #game-header-stats { font-size:clamp(18px,5vw,30px); cursor:default; }
-        .cheat-mode .level-label,.cheat-mode .level-val { color:#d993ff; }
-        .cheat-mode #game-container { border-color:#9756b4; }
-        .cheat-mode #overlay button { font-size:1rem; padding:15px 20px; }
         #game-container { transition:none; }
         #game-header-stats { flex-wrap:nowrap; gap:0; line-height:1.15; }
-        #cheat-badge { max-width:100%; text-align:center; flex-shrink:0; }
         @media (max-height:450px), (max-width:280px) {
             body { padding-left:4px; padding-right:4px; }
             #game-container { padding:4px; border-width:2px; }
@@ -360,61 +338,32 @@
             #glow-layer { transition:none; }
         }
         @media (prefers-reduced-motion:reduce) { #level-title,#level-complete-mark { transition:none; } }
+        .panning.pan-live #grid,.panning.pan-live #grid .cell {visibility:visible !important;}
+        .panning.pan-live #grid {overflow:hidden;}
+        .panning.pan-live .wrap-edge,.panning.pan-live .cell::after {display:none;}
+        .panning.pan-live .wire-path {stroke-dasharray:none !important;}
+        .panning.pan-live svg * {filter:none !important;transition:none !important;}
+        #debug-btn {
+            display: flex;
+            justify-content: center;
+            gap: 10px; margin-top: 10px; flex-shrink: 0;
+            position: relative; z-index: 100;
+        }
+        .dbg {
+            background: #34495e; color: #bdc3c7; font-size: 0.8rem; padding: 8px 12px;
+            border: 1px solid #555; min-height: 44px; border-radius: 4px; cursor: pointer;
+        }
+        .dbg:hover { opacity: 1; }
 
-        #effects-controls { display:flex; align-items:center; justify-content:center; gap:8px;
-            min-height:28px; flex-shrink:0; margin-top:3px; color:#9eb6a6; font-size:11px; }
-        #effects-mode { color:#c9ddcf; background:#102319; border:1px solid #294536;
-            border-radius:5px; padding:4px; font:inherit; max-width:160px; }
-        #performance-status { font-variant-numeric:tabular-nums; font-size:10px; }
-        .fx-steady.level-complete .wire-path { animation:none !important; stroke-dasharray:none !important; }
-        .lite-light-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
-        .fx-lite .bulb-light { display:none; }
-        .fx-lite .lite-light-canvas { display:block; }
-        @keyframes liteLamp { 0%,100% {opacity:var(--wave-min,.7)} 50% {opacity:1} }
-        .fx-lite .pg-0 .bulb-glass,.fx-lite .pg-1 .bulb-glass {
-            filter:drop-shadow(0 0 12px var(--bulb-color)); fill-opacity:1;
-            animation:liteLamp 2.5s ease-in-out infinite; }
-        .fx-lite.level-complete .pg-0 .bulb-glass,.fx-lite.level-complete .pg-1 .bulb-glass {
-            animation:none; }
-        @media (prefers-reduced-motion:reduce) { .fx-lite .bulb-glass {animation:none !important;} }
-
-        #diag-open {font:inherit; background:#203c2c;color:#fff;border:1px solid #52735d;border-radius:4px;padding:5px;}
-        #diag-panel {position:fixed;z-index:1000;inset:auto 8px 8px;max-height:85dvh;overflow:auto;
-          background:#102019f5;color:#e3eee6;border:1px solid #557463;border-radius:8px;padding:12px;
-          font:12px/1.4 system-ui;box-shadow:0 0 20px #000;}
-        #diag-panel button,#diag-panel input {font:inherit;padding:7px;margin:3px;}
-        #diag-switches {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
-        #diag-switches label {display:flex;align-items:center;gap:3px;}
-        #diag-summary {white-space:pre-wrap;font:11px/1.4 monospace;}
-        #diag-report {width:100%;height:35vh;font:11px monospace;}
-        .diag-no-filters #game-stage *, .diag-no-filters #game-stage *::before,
-        .diag-no-filters #game-stage *::after {filter:none !important;}
-        .diag-no-shadows #game-container,.diag-no-shadows #game-container *,
-        .diag-no-shadows #game-container::after {box-shadow:none !important;text-shadow:none !important;}
-        .diag-no-light #glow-layer {display:none !important;}
-        .diag-no-flow .wire-path {animation:none !important;stroke-dasharray:none !important;}
-        .diag-no-motion #game-stage * {animation:none !important;transition:none !important;}
-        .diag-no-svg #game-stage svg {display:none !important;}
-        .diag-no-pop .cell {animation:none !important;}
-        .diag-flat #game-stage svg {overflow:hidden !important;}
-        .diag-no-hints .wrap-edge {display:none !important;}
-        .diag-no-layers .pan-copy {will-change:auto !important;}
-
-        #diag-panel {top:8px;bottom:auto;left:8px;right:8px;height:calc(100vh - 16px);max-height:none;
-            display:flex;flex-direction:column;overflow:hidden;padding:0;box-sizing:border-box;}
-        #diag-header {display:flex;align-items:center;justify-content:space-between;gap:8px;
-            flex:0 0 auto;padding:6px 10px;background:#183426;}
-        #diag-header button {flex:0 0 auto;min-height:40px;}
-        #diag-content {flex:1 1 auto;min-height:0;overflow:auto;padding:10px;overscroll-behavior:contain;}
-        #diag-report {display:block;height:240px;height:40vh;min-height:100px;max-height:400px;
-            user-select:text;-webkit-user-select:text;white-space:pre;resize:vertical;}
-        #diag-running {position:fixed;top:0;left:0;right:0;z-index:999;background:#102319ed;
-            padding:5px;color:#fff;font:12px system-ui;display:flex;justify-content:space-between;align-items:center;}
-        .diag-auto-running #game-wrapper {pointer-events:none;}
-        .diag-report-ready #game-wrapper {visibility:hidden;}
-        .diag-report-ready #game-wrapper * {animation-play-state:paused !important;}
-        #diag-manual summary {cursor:pointer;padding:8px;}
-        @media (max-width:360px) {#diag-switches {grid-template-columns:1fr;}}
+        #cheat-badge { color:#ecb9ff; background:#61277b44; border:1px solid #b868db;
+            border-radius:20px; padding:3px 12px; margin-bottom:5px; font-size:11px; letter-spacing:1px; }
+        .cheat-mode #game-header-stats { font-size:clamp(18px,5vw,30px); cursor:default; }
+        .cheat-mode .level-label,.cheat-mode .level-val { color:#d993ff; }
+        .cheat-mode #game-container { border-color:#9756b4; }
+        .cheat-mode #overlay button { font-size:1rem; padding:15px 20px; }
+        #game-container { transition:none; }
+        #game-header-stats { flex-wrap:nowrap; gap:0; line-height:1.15; }
+        #cheat-badge { max-width:100%; text-align:center; flex-shrink:0; }
     </style>
 </head>
 <body>
@@ -442,48 +391,12 @@
         <div id="overlay">
             <button id="next-button" onclick="window.game.nextLevel()">Next Level →</button>
         </div>
-        <div id="effects-controls">
-            <label for="effects-mode">Effects:</label>
-            <select id="effects-mode" aria-label="Graphics quality">
-                <option value="full">Full</option><option value="lite">Light</option>
-            </select>
-            <button id="diag-open" type="button">Диагностика</button>
-            <span id="performance-status" hidden title="Estimated frame rate from requestAnimationFrame"></span>
-        </div>
         <div id="debug-btn" hidden>
             <button type="button" class="dbg" onclick="window.game.resolve()">Resolve</button>
             <button type="button" class="dbg" onclick="window.game.nextLevel()">Skip</button>
-            
+            <button type="button" class="dbg" onclick="window.game.exitSandbox()">Exit debug</button>
         </div>
     </div>
-
-
-    <div id="diag-running" hidden><span id="diag-progress"></span> <button id="diag-stop">Остановить</button></div>
-    <section id="diag-panel" hidden aria-label="Диагностика производительности">
-      <header id="diag-header"><strong>Диагностика</strong><button id="diag-close">Закрыть</button></header>
-      <div id="diag-content">
-        <div id="diag-auto-intro">
-          <p>Автотест проверит победное свечение, повороты и прокрутку на уровнях 5558 и 5559 с разными эффектами.
-          Нажмите «Начать» и оставьте страницу открытой. Во время теста не трогайте поле.
-          На медленном телефоне прогон может занять несколько минут. Прогресс игры не сохраняется.</p>
-          <button id="diag-start">Начать автоматическую диагностику</button>
-        </div>
-        <details id="diag-manual"><summary>Ручные тесты (необязательно)</summary>
-          <div><label>Уровень <input id="diag-level" type="number" min="1" value="5558" style="width:95px"></label>
-          <button id="diag-load">Загрузить заново</button><button id="diag-solve">Resolve</button></div>
-          <div id="diag-switches"></div>
-          <div><button id="diag-baseline">Исходные эффекты</button><button id="diag-record">Записать результат</button>
-          <button id="diag-export">Скачать отчёт</button><button id="diag-show">Показать текст отчёта</button></div>
-          <pre id="diag-summary"></pre>
-        </details>
-        <p id="diag-feedback" role="status"></p>
-        <div id="diag-result" hidden>
-          <p>JSON готов. Скопируйте его целиком и пришлите в чат. Если кнопка копирования не работает, нажмите «Выделить всё», затем выберите «Копировать» в меню телефона.</p>
-          <button id="diag-copy">Копировать JSON</button><button id="diag-select">Выделить всё</button>
-          <textarea id="diag-report" readonly spellcheck="false" aria-label="JSON отчёт для копирования"></textarea>
-        </div>
-      </div>
-    </section>
 
 <script>
 /** CONSTANTS */
@@ -553,6 +466,8 @@ function bulbBag(level,count) {
     while(colors.length<count) colors.push(...shuffle(palette.slice(),random));
     return colors.slice(0,count);
 }
+
+
 function cheatLevelFromURL(search) {
     const raw=new URLSearchParams(search).get('level');
     if(!raw || !/^[0-9]+$/.test(raw)) return null;
@@ -826,7 +741,6 @@ class VisualFX {
             const variation=(Math.sin(b.x*12.9898+b.y*78.233)*43758.5453)%1;
             const amplitude=variation-Math.floor(variation);
             const peak=1.24+.12*amplitude;
-            b.wavePhase=phase;b.waveMinimum=.72-.14*amplitude;b.wavePeak=peak;
             const wave={
                 '--wave-delay':(-phase)+'s',
                 '--wave-min':.72-.14*amplitude,
@@ -853,147 +767,6 @@ class VisualFX {
                 this.ctx.globalAlpha=p.life; this.ctx.fillStyle=p.color;
                 this.ctx.beginPath(); this.ctx.arc(p.x,p.y,p.size,0,6.28); this.ctx.fill();
             }
-        }
-        this.wake();
-    }
-}
-
-/** ADAPTIVE EFFECTS: changes rendering only, never level data or progress. */
-class EffectQuality {
-    constructor(game) {
-        this.game=game;this.mode='full';this.tier=0;this.autoTier=0;
-        this.frame=null;this.last=0;this.samples=[];this.epoch=performance.now();
-        this.grace=this.epoch+1200;this.sprites=new Map();this.dirty=true;
-        this.select=document.getElementById('effects-mode');
-        this.status=document.getElementById('performance-status');
-        if(!game.sandboxMode) {
-            try {const saved=localStorage.getItem('gimme_light_v3_effects');
-                if(['auto','full','lite'].includes(saved)) this.mode=saved;
-            } catch(_) {}
-        }
-        this.select.value=this.mode;
-        this.select.addEventListener('change',()=>this.setMode(this.select.value));
-        this.tick=this.tick.bind(this);
-        document.addEventListener?.('visibilitychange',()=>{
-            cancelAnimationFrame(this.frame);this.frame=null;this.last=0;this.samples=[];
-            this.grace=performance.now()+1000;
-            if(!document.hidden) this.wake();
-        });
-        this.apply();this.refresh();
-    }
-    setMode(mode) {
-        if(!['auto','full','lite'].includes(mode)) return;
-        this.mode=mode;this.autoTier=0;this.last=0;this.samples=[];
-        this.grace=performance.now()+1200;
-        if(!this.game.sandboxMode) {
-            try {localStorage.setItem('gimme_light_v3_effects',mode);} catch(_) {}
-        }
-        this.apply();this.wake();
-    }
-    apply() {
-        this.tier=this.mode==='lite'?2:this.mode==='full'?0:this.autoTier;
-        this.game.stage.classList.toggle('fx-steady',this.tier>=1);
-        this.game.stage.classList.toggle('fx-lite',this.tier>=2);
-        if(this.tier===2 && !this.canvas) {
-            this.canvas=document.createElement('canvas');this.canvas.className='lite-light-canvas';
-            this.ctx=this.canvas.getContext('2d');this.game.vfx.glowLayer.appendChild(this.canvas);
-        }
-        this.dirty=true;
-        for(const b of this.game.vfx.lights.keys()) {
-            b.liteGlass ??= b.el.querySelector('.bulb-glass');
-            if(b.liteGlass) b.liteGlass.style.opacity='';
-        }
-    }
-    refresh() {
-        this.status.hidden=!this.game.debugMode;
-        if(this.wasCompleted!==this.game.completed) {
-            this.wasCompleted=this.game.completed;this.epoch=performance.now();
-            this.grace=this.epoch+1200;this.samples=[];this.last=0;
-        }
-        this.dirty=true;this.wake();
-    }
-    wake() {
-        if(this.frame===null && !document.hidden &&
-            (this.game.vfx.lights.size || this.dirty)) this.frame=requestAnimationFrame(this.tick);
-    }
-    // CSS ease-in-out (cubic-bezier .42,0,.58,1), matching the lamp's opacity wave.
-    ease(x) {
-        let lo=0,hi=1,t=x;
-        for(let i=0;i<12;i++) {
-            t=(lo+hi)/2;
-            const bx=3*(1-t)*(1-t)*t*.42+3*(1-t)*t*t*.58+t*t*t;
-            if(bx<x) lo=t;else hi=t;
-        }
-        return 3*(1-t)*t*t+t*t*t;
-    }
-    sprite(color,kind) {
-        const key=color+kind;if(this.sprites.has(key)) return this.sprites.get(key);
-        const image=document.createElement('canvas');image.width=image.height=128;
-        const ctx=image.getContext('2d');
-        const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
-        const luma=.213*rgb[0]+.715*rgb[1]+.072*rgb[2];
-        const saturation=kind==='bright'?1.36:1,brightness=kind==='bright'?1.36:kind==='dim'?.72:1;
-        const c=rgb.map(v=>Math.round(Math.max(0,Math.min(255,(luma+(v-luma)*saturation)*brightness))));
-        const gradient=ctx.createRadialGradient(64,64,0,64,64,64);
-        for(const [stop,alpha] of [[0,160/255],[.38,96/255],[.68,38/255],[1,0]])
-            gradient.addColorStop(stop,`rgba(${c.join(',')},${alpha})`);
-        ctx.fillStyle=gradient;ctx.fillRect(0,0,128,128);this.sprites.set(key,image);return image;
-    }
-    draw(now) {
-        const g=this.game,cs=g.vfx.cellSize;
-        const scale=Math.min(.5,512/Math.max(g.w*cs,g.h*cs));
-        const w=Math.max(1,Math.round(g.w*cs*scale)),h=Math.max(1,Math.round(g.h*cs*scale));
-        if(this.canvas.width!==w) this.canvas.width=w;
-        if(this.canvas.height!==h) this.canvas.height=h;
-        const ctx=this.ctx;ctx.clearRect(0,0,w,h);
-        const radius=cs*2.8*scale;
-        const lamps=Array.from(g.vfx.lights.keys());
-        const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        for(let i=lamps.length-1;i>=0;i--) {
-            const b=lamps[i],x=(b.x+.5)*cs*scale-radius,y=(b.y+.5)*cs*scale-radius;
-            if(g.completed && !reduced) {
-                const phase=(((now-this.epoch)/1000+b.wavePhase)%2.8+2.8)%2.8/2.8;
-                const pulse=this.ease(phase<.5?phase*2:(1-phase)*2);
-                b.liteGlass ??= b.el.querySelector('.bulb-glass');
-                if(b.liteGlass) b.liteGlass.style.opacity=b.waveMinimum+(1-b.waveMinimum)*pulse;
-                ctx.globalAlpha=(1-pulse)*b.waveMinimum/.72;
-                ctx.drawImage(this.sprite(b.color,'dim'),x,y,radius*2,radius*2);
-                ctx.globalAlpha=pulse*b.wavePeak/1.36;
-                ctx.drawImage(this.sprite(b.color,'bright'),x,y,radius*2,radius*2);
-            } else {
-                if(b.liteGlass) b.liteGlass.style.opacity='';
-                ctx.globalAlpha=1;ctx.drawImage(this.sprite(b.color,'base'),x,y,radius*2,radius*2);
-            }
-        }
-        ctx.globalAlpha=1;this.dirty=false;
-        this.lastDraw=now-((now-(this.lastDraw||0))%(1000/30));
-    }
-    sample(now,delta) {
-        this.samples.push(delta);
-        let total=this.samples.reduce((a,b)=>a+b,0);
-        while(this.samples.length>2 && total-this.samples[0]>2500) total-=this.samples.shift();
-        const fps=1000*this.samples.length/total;
-        if(now-(this.lastStatus||0)>700) {
-            this.status.textContent=`~${Math.round(fps)} fps · ${['Full','Still wires','Light'][this.tier]} · ${this.game.vfx.lights.size} lamps`;
-            this.lastStatus=now;
-        }
-        // Two slow frames suffice for catastrophic stalls; ordinary dips need 2.5 seconds.
-        if(this.mode==='auto' && this.autoTier<2 && this.samples.length>=2 &&
-            ((total>=700 && fps<12) || (total>=2500 && fps<35))) {
-            this.autoTier++;this.apply();this.samples=[];this.grace=now+900;
-        }
-    }
-    tick(now) {
-        this.frame=null;if(document.hidden) return;
-        const g=this.game;
-        if(g.pan || g.panSettling || g.transitionBusy) {
-            this.last=0;this.samples=[];this.grace=now+800;
-        } else {
-            if(this.last && now>=this.grace) this.sample(now,now-this.last);
-            this.last=now;
-            const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-            if(this.tier===2 && (this.dirty || (g.completed && !reduced && now-(this.lastDraw||0)>=1000/30-.1))) this.draw(now);
-            else if(this.tier!==2) this.dirty=false;
         }
         this.wake();
     }
@@ -1238,7 +1011,7 @@ class Game {
         this.STORAGE_KEY = 'gimme_light_v3_save';
         this.SAVE_VERSION = 1;
         this.cheatMode=false;
-        this.debugMode=true;
+        this.debugMode=new URLSearchParams(window.location.search).get('debug')==='1';
 
         this.initResetHandler();
         this.initPanHandler();
@@ -1259,7 +1032,7 @@ class Game {
         window.addEventListener('resize',resize);
         window.visualViewport?.addEventListener('resize',resize);
 
-        const cheatLevel=cheatLevelFromURL(window.location.search) || 5558;
+        const cheatLevel=cheatLevelFromURL(window.location.search);
         if(cheatLevel!==null) {
             this.cheatMode=true;
             this.lvl=cheatLevel;
@@ -1268,10 +1041,9 @@ class Game {
             this.lvl=1; 
             this.start();
         }
-        this.effects=new EffectQuality(this);
     }
 
-    get sandboxMode() { return true; }
+    get sandboxMode() { return this.cheatMode || this.debugMode; }
 
     updateModeUI() {
         document.getElementById('debug-btn').hidden=!this.debugMode;
@@ -1336,30 +1108,149 @@ class Game {
     }
 
     createPanLayer() {
-        this.panLayer=document.createElement('div');
-        this.panLayer.className='pan-layer';
-        this.panCopies=[];
-        const xs=this.spec.wrapX ? [0,1] : [0];
-        const ys=this.spec.wrapY ? [0,1] : [0];
-        for(const y of ys) for(const x of xs) {
-            const copy=this.el.cloneNode(true);
-            copy.removeAttribute('id');copy.className='pan-copy';
-            copy.setAttribute('aria-hidden','true');
-            this.panLayer.appendChild(copy);this.panCopies.push({el:copy,x,y});
+        if(this.panBitmapVersion!==this.boardVersion && this.finishPanBitmap) this.finishPanBitmap();
+        this.panUsingCanvas=!!this.panBitmap && this.panBitmapVersion===this.boardVersion;
+        this.panLayer=document.createElement('div');this.panLayer.className='pan-layer';
+        if(this.panUsingCanvas) {
+            const canvas=document.createElement('canvas');
+            canvas.width=this.panBitmap.width;canvas.height=this.panBitmap.height;
+            canvas.style.width='100%';canvas.style.height='100%';
+            this.panLayer.appendChild(canvas);this.panContext=canvas.getContext('2d');
+        } else {
+            // Immediate fallback while a new bitmap is being prepared: reuse existing cells.
+            this.stage.classList.add('pan-live');this.panSeams=new Map();
         }
-        this.stage.appendChild(this.panLayer);
-        this.stage.classList.add('panning');
+        this.stage.appendChild(this.panLayer);this.stage.classList.add('panning');
+        this.paintPan(0,0);
+    }
+    paintPan(dx,dy) {
+        const cs=this.vfx.cellSize,width=this.w*cs,height=this.h*cs;
+        const wrap=(v,size)=>((v+size/2)%size+size)%size-size/2;
+        const x=this.spec.wrapX?wrap(dx,width):0,y=this.spec.wrapY?wrap(dy,height):0;
+        if(this.panUsingCanvas) {
+            const ctx=this.panContext,dpr=this.panBitmap.width/width;
+            const xs=this.spec.wrapX?[x,x+(x>0?-width:width)]:[0];
+            const ys=this.spec.wrapY?[y,y+(y>0?-height:height)]:[0];
+            ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+            for(const oy of ys)for(const ox of xs)ctx.drawImage(this.panBitmap,ox*dpr,oy*dpr);
+        } else {
+            // Compatibility fallback: reuse the field, duplicating only cells split at the seam.
+            const mod=(v,n)=>(v%n+n)%n;
+            for(const row of this.cells)for(const c of row) {
+                const left=c.x*cs+x,top=c.y*cs+y;
+                const px=this.spec.wrapX?mod(left,width):left;
+                const py=this.spec.wrapY?mod(top,height):top;
+                c.el.style.transform=`translate(${px-c.x*cs}px,${py-c.y*cs}px)`;
+                const seams=[];
+                if(this.spec.wrapX && px+cs>width)seams.push([px-width,py]);
+                if(this.spec.wrapY && py+cs>height)seams.push([px,py-height]);
+                if(seams.length===2)seams.push([px-width,py-height]);
+                let copies=this.panSeams.get(c);
+                if(!copies){copies=[];this.panSeams.set(c,copies);}
+                for(let i=0;i<3;i++) {
+                    if(i<seams.length) {
+                        if(!copies[i]) {
+                            const clone=c.el.cloneNode(true);clone.style.position='absolute';clone.style.width=clone.style.height=cs+'px';
+                            clone.style.left=clone.style.top='0';clone.style.gridColumn=clone.style.gridRow='auto';
+                            clone.style.pointerEvents='none';this.el.appendChild(clone);copies[i]=clone;
+                        }
+                        copies[i].style.display='';copies[i].style.transform=`translate(${seams[i][0]}px,${seams[i][1]}px)`;
+                    } else if(copies[i])copies[i].style.display='none';
+                }
+            }
+        }
     }
 
-    paintPan(dx,dy) {
-        const width=this.w*this.vfx.cellSize,height=this.h*this.vfx.cellSize;
-        // Centered modulo supports dragging through any number of full turns.
-        const wrap=(v,size)=>((v+size/2)%size+size)%size-size/2;
-        const x=this.spec.wrapX ? wrap(dx,width) : 0;
-        const y=this.spec.wrapY ? wrap(dy,height) : 0;
-        // Only the central tile and its visible neighbors are needed (4 on a torus).
-        for(const copy of this.panCopies || [])
-            copy.el.style.transform=`translate3d(${x+copy.x*(x>0?-width:width)}px,${y+copy.y*(y>0?-height:height)}px,0)`;
+
+    schedulePanBitmap() {
+        this.boardVersion=(this.boardVersion||0)+1;
+        if(!(this.spec.wrapX||this.spec.wrapY) || typeof Path2D==='undefined')return;
+        const version=this.boardVersion,cs=this.vfx.cellSize,dpr=window.devicePixelRatio||1;
+        if(cs<=0)return;
+        const canvas=document.createElement('canvas');canvas.width=Math.round(this.w*cs*dpr);canvas.height=Math.round(this.h*cs*dpr);
+        const ctx=canvas.getContext('2d');if(!ctx)return;
+        ctx.scale(canvas.width/(this.w*cs),canvas.height/(this.h*cs));
+        const cells=this.cells.flat();let index=0;
+        const line=this.panGridColor || (this.panGridColor=getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim()||'rgba(190,224,198,.12)');
+        const later=fn=>typeof requestIdleCallback==='function'?requestIdleCallback(fn,{timeout:250}):setTimeout(fn,32);
+        const batch=(finish=false)=>{
+            if(version!==this.boardVersion || index>=cells.length)return;
+            if(!finish && (this.pan||this.panSettling)){later(()=>batch());return;}
+            const start=performance.now();
+            do {
+                const c=cells[index++],x=c.x*cs,y=c.y*cs;
+                ctx.save();ctx.translate(x,y);
+                if(c.type===TILES.EMPTY) {
+                    ctx.fillStyle='rgba(0,0,0,.24)';ctx.fillRect(0,0,cs,cs);
+                    const shade=ctx.createLinearGradient(0,0,0,3);
+                    shade.addColorStop(0,'#0004');shade.addColorStop(1,'#0000');
+                    ctx.fillStyle=shade;ctx.fillRect(0,0,cs,3);
+                } else {
+                    ctx.fillStyle='rgba(166,220,181,.03)';ctx.fillRect(0,0,cs,cs);
+                    ctx.strokeStyle=line;ctx.lineWidth=1;ctx.strokeRect(.5,.5,cs-1,cs-1);
+                    ctx.translate(cs/2,cs/2);ctx.rotate(c.vRot*Math.PI/2);ctx.scale(cs/100,cs/100);ctx.translate(-50,-50);
+                    this.paintTileSnapshot(ctx,c);
+                }
+                ctx.restore();
+            } while(index<cells.length && (finish || performance.now()-start<5));
+            if(index<cells.length)later(()=>batch());
+            else {this.panBitmap=canvas;this.panBitmapVersion=version;this.finishPanBitmap=null;}
+        };
+        this.finishPanBitmap=()=>batch(true);
+        later(()=>batch());
+    }
+    paintTileSnapshot(ctx,c) {
+        // Cache geometry separately from state; no SVG parsing/rasterization during a swipe.
+        if(!c.snapshotShapes) {
+            const svg=c.el.querySelector('svg');if(!svg)return;
+            c.snapshotShapes=[];
+            const visit=(node,matrices)=>{
+                const transform=node.transform?.baseVal?.consolidate()?.matrix;
+                const transforms=transform?[...matrices,transform]:matrices;
+                if(['svg','g'].includes(node.tagName.toLowerCase())) {
+                    for(const child of node.children)visit(child,transforms);return;
+                }
+                const n=name=>Number(node.getAttribute(name)||0);let path;
+                switch(node.tagName.toLowerCase()) {
+                    case 'path':path=new Path2D(node.getAttribute('d'));break;
+                    case 'rect': {
+                        path=new Path2D();const x=n('x'),y=n('y'),w=n('width'),h=n('height'),r=n('rx');
+                        path.moveTo(x+r,y);path.lineTo(x+w-r,y);path.quadraticCurveTo(x+w,y,x+w,y+r);
+                        path.lineTo(x+w,y+h-r);path.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+                        path.lineTo(x+r,y+h);path.quadraticCurveTo(x,y+h,x,y+h-r);
+                        path.lineTo(x,y+r);path.quadraticCurveTo(x,y,x+r,y);path.closePath();break;
+                    }
+                    case 'circle':path=new Path2D();path.arc(n('cx'),n('cy'),n('r'),0,Math.PI*2);break;
+                    case 'line':path=new Path2D();path.moveTo(n('x1'),n('y1'));path.lineTo(n('x2'),n('y2'));break;
+                    case 'polygon': {
+                        path=new Path2D();const points=node.getAttribute('points').trim().split(/[ ,]+/).map(Number);
+                        path.moveTo(points[0],points[1]);for(let i=2;i<points.length;i+=2)path.lineTo(points[i],points[i+1]);path.closePath();break;
+                    }
+                    default:return;
+                }
+                c.snapshotShapes.push({node,path,transforms});
+            };
+            visit(svg,[]);
+        }
+        this.snapshotStyleCache ??= new Map();
+        const key=[c.type,c.color,c.visGroups,c.shortGroups,c.loopPorts,!!this.completed].join(':');
+        let styles=this.snapshotStyleCache.get(key);
+        if(!styles) {
+            styles=c.snapshotShapes.map(({node})=>{
+                const css=getComputedStyle(node),style={};
+                for(const name of ['fill','stroke','strokeWidth','strokeLinecap','strokeLinejoin','opacity','fillOpacity','strokeOpacity'])style[name]=css[name];
+                return style;
+            });
+            this.snapshotStyleCache.set(key,styles);
+        }
+        for(let i=0;i<c.snapshotShapes.length;i++) {
+            const {path,transforms}=c.snapshotShapes[i],css=styles[i];ctx.save();
+            for(const m of transforms)ctx.transform(m.a,m.b,m.c,m.d,m.e,m.f);
+            ctx.lineWidth=parseFloat(css.strokeWidth)||0;ctx.lineCap=css.strokeLinecap;ctx.lineJoin=css.strokeLinejoin;
+            if(css.fill!=='none') {ctx.fillStyle=css.fill;ctx.globalAlpha=(parseFloat(css.opacity)||0)*(parseFloat(css.fillOpacity)||0);ctx.fill(path);}
+            if(css.stroke!=='none'&&ctx.lineWidth) {ctx.strokeStyle=css.stroke;ctx.globalAlpha=(parseFloat(css.opacity)||0)*(parseFloat(css.strokeOpacity)||0);ctx.stroke(path);}
+            ctx.restore();
+        }
     }
 
     settlePan(dx,dy) {
@@ -1386,11 +1277,22 @@ class Game {
         // Sync rotations before moving; write the final translated state only once.
         this.saveProgress(false);
         const mod=(v,n)=>(v%n+n)%n;
-        const previous=this.map;
+        const previous=this.map,oldCells=this.cells;
         this.map=Array.from({length:this.h},(_,y)=>Array.from({length:this.w},(_,x)=>
             previous[mod(y-sy,this.h)][mod(x-sx,this.w)]));
-        this.el.classList.add('no-pop');
-        this.render();
+        this.cells=Array.from({length:this.h},(_,y)=>Array.from({length:this.w},(_,x)=>{
+            const c=oldCells[mod(y-sy,this.h)][mod(x-sx,this.w)];
+            c.x=x;c.y=y;c.el.style.gridColumn=String(x+1);c.el.style.gridRow=String(y+1);
+            c.el.style.transform='';
+            c.el.querySelectorAll('.wrap-edge').forEach(mark=>mark.remove());
+            if(c.type!==TILES.EMPTY)for(const [enabled,dir,name] of [
+                [this.spec.wrapY&&y===0,0,'top'],[this.spec.wrapX&&x===this.w-1,1,'right'],
+                [this.spec.wrapY&&y===this.h-1,2,'bottom'],[this.spec.wrapX&&x===0,3,'left']]) {
+                if(!enabled)continue;const mark=document.createElement('span');
+                mark.className='wrap-edge '+name;mark.setAttribute('data-dir',String(dir));c.el.appendChild(mark);
+            }
+            return c;
+        }));
         this.vfx.particles=[];
         this.check(true);
         this.saveProgress();
@@ -1402,7 +1304,10 @@ class Game {
         const p=this.pan;
         this.pan=null;
         if(p && this.stage.hasPointerCapture(p.id)) this.stage.releasePointerCapture(p.id);
-        this.panLayer?.remove();this.panLayer=null;this.panCopies=[];
+        this.panLayer?.remove();this.panLayer=null;this.panContext=null;
+        if(this.cells)for(const row of this.cells)for(const c of row)c.el.style.transform='';
+        if(this.panSeams)for(const copies of this.panSeams.values())for(const clone of copies)clone.remove();
+        this.panSeams=null;this.stage.classList.remove('pan-live');
         this.panSettling=false;
         this.stage.classList.remove('panning');
         if(this.resizePending) {
@@ -1515,7 +1420,7 @@ class Game {
             const css=getComputedStyle(el);
             return el.offsetHeight+num(css.marginTop)+num(css.marginBottom);
         };
-        const controls=outerHeight('game-header-stats')+outerHeight('cheat-badge')+outerHeight('debug-btn')+outerHeight('overlay')+outerHeight('effects-controls');
+        const controls=outerHeight('game-header-stats')+outerHeight('cheat-badge')+outerHeight('debug-btn')+outerHeight('overlay');
         const frameW=num(frame.paddingLeft)+num(frame.paddingRight)+num(frame.borderLeftWidth)+num(frame.borderRightWidth);
         const frameH=num(frame.paddingTop)+num(frame.paddingBottom)+num(frame.borderTopWidth)+num(frame.borderBottomWidth);
         return {availW:Math.max(0,width-frameW-2),availH:Math.max(0,height-controls-frameH-2)};
@@ -1554,6 +1459,7 @@ class Game {
         this.el.innerHTML='';
         this.paintState=new Map();
         this.cells=[];
+        const fragment=document.createDocumentFragment();
         for(let y=0;y<this.h;y++){
             let r=[];
             for(let x=0;x<this.w;x++){
@@ -1578,13 +1484,15 @@ class Game {
                 
                 inn.innerHTML=this.svg(d); inn.style.transform=`rotate(${d.rot*90}deg)`;
                 cel.appendChild(inn);
-                this.el.appendChild(cel);
+                cel.style.gridColumn=String(x+1);cel.style.gridRow=String(y+1);
+                fragment.appendChild(cel);
                 let obj={ x,y,type:d.type, vRot:d.rot, correctRot:d.correctRot, el:cel,inEl:inn, color:displayBulbColor(d.color) };
                 cel.onclick=(e)=>this.rot(obj, e);
                 r.push(obj);
             }
             this.cells.push(r);
         }
+        this.el.appendChild(fragment);
     }
     svg(d) {
         const t=d.type, c=TILE_CONNS[t];
@@ -1667,11 +1575,7 @@ class Game {
         const cx = c.x * this.vfx.cellSize + this.vfx.cellSize/2;
         const cy = c.y * this.vfx.cellSize + this.vfx.cellSize/2;
         this.vfx.spawn(cx,cy,'spark',c.type===TILES.BULB ? c.color : undefined);
-        if(!window.diagnostics?.flags['no-tap']) {
-            c.el.classList.remove('tapped');
-            window.diagnostics.measure('rot.layoutFlush',()=>c.el.offsetWidth);
-            c.el.classList.add('tapped');
-        }
+        c.el.classList.remove('tapped');void c.el.offsetWidth;c.el.classList.add('tapped');
         this.haptic('tick');
         this.saveProgress(); 
         this.check(false);
@@ -1917,6 +1821,7 @@ class Game {
             if(!previous.get(node)?.has(name)) node.classList.add(name);
         this.paintState=desired;
         this.vfx.updateLight(litBulbsArr);
+        this.schedulePanBitmap();
         if(!silent){
             if(short && !this.short) {
                 this.audio.play('zap'); this.haptic('zap');
@@ -1938,7 +1843,6 @@ class Game {
         } else if(!solved && this.completed) {
             this.resetCompletion();
         }
-        this.effects?.refresh();
     }
     showCompletionMark() {
         const title=document.getElementById('level-title');
@@ -2003,302 +1907,7 @@ class Game {
         }); 
     }
 }
-
-/** Diagnostic build: bounded in-memory recording, no progress/storage writes. */
-class GameDiagnostics {
-    constructor() {
-        this.flags={};this.events=[];this.runs=[];this.stats={};this.frames=[];
-        this.started=performance.now();this.last=0;this.lastUI=0;this.action=0;this.longTasks=0;
-        this.panel=document.getElementById('diag-panel');
-        this.summary=document.getElementById('diag-summary');
-        this.reportBox=document.getElementById('diag-report');
-        this.options=[
-          ['no-filters','Без SVG/CSS-фильтров'],['no-light','Без освещения поля'],
-          ['no-flow','Без движения тока'],['no-motion','Без анимаций SVG/CSS'],
-          ['no-svg','Скрыть всю SVG-графику'],['no-shadows','Без теней рамки/клеток'],
-          ['no-particles','Без частиц'],['no-tap','Без вспышки нажатия и layout flush'],
-          ['no-pop','Без появления клеток'],['no-clones','Прокрутка без SVG-копий'],
-          ['no-commit','Не перестраивать поле при отпускании'],['flat','Обрезать SVG по границам клетки'],
-          ['no-hints','Без полосок на краях'],['no-layers','2D-прокрутка без will-change']
-        ];
-        this.install();
-        try {
-            this.observer=new PerformanceObserver(list=>{
-                for(const entry of list.getEntries()) {
-                    this.longTasks++;this.log('longtask',{ms:entry.duration});
-                }
-            });
-            this.observer.observe({entryTypes:['longtask']});
-            this.longTaskSupport=true;
-        } catch(_) {this.longTaskSupport=false;}
-    }
-    log(name,data={}) {
-        this.events.push({t:Math.round(performance.now()-this.started),name,...data});
-        if(this.events.length>180) this.events.shift();
-    }
-    measure(name,fn) {
-        const start=performance.now();
-        try {return fn();} finally {
-            const ms=performance.now()-start;
-            const v=this.stats[name] || (this.stats[name]={count:0,total:0,max:0,last:0});
-            v.count++;v.total+=ms;v.max=Math.max(v.max,ms);v.last=ms;
-            if(ms>25 || ['rot','createPanLayer','shiftField','render','cancelPan'].includes(name))this.log(name,{ms});
-        }
-    }
-    afterFrames(name) {
-        const start=performance.now(),id=++this.action;
-        requestAnimationFrame(()=>{
-            this.log(name+' → rAF1',{id,ms:performance.now()-start});
-            requestAnimationFrame(()=>this.log(name+' → rAF2',{id,ms:performance.now()-start}));
-        });
-    }
-    install() {
-        const diag=this;
-        for(const name of ['rot','createPanLayer','paintPan','settlePan','shiftField','cancelPan','render','check','saveProgress','setupLayout','highlightPoweredLoops']) {
-            const original=Game.prototype[name];
-            Game.prototype[name]=function(...args) {
-                if(name==='createPanLayer' && diag.flags['no-clones']) {
-                    this.panCopies=[];diag.log('createPanLayer skipped');return;
-                }
-                if(name==='shiftField' && diag.flags['no-commit']) {
-                    diag.log('shiftField skipped');return;
-                }
-                const result=diag.measure(name,()=>original.apply(this,args));
-                if(name==='paintPan' && diag.flags['no-layers'])
-                    for(const copy of this.panCopies || [])copy.el.style.transform=copy.el.style.transform.replace('translate3d(','translate(').replace(',0)',')');
-                if(['rot','createPanLayer','shiftField','cancelPan'].includes(name))diag.afterFrames(name);
-                return result;
-            };
-        }
-        for(const name of ['updateLight','loop']) {
-            const original=VisualFX.prototype[name];
-            VisualFX.prototype[name]=function(...args) {return diag.measure('VFX.'+name,()=>original.apply(this,args));};
-        }
-        const spawn=VisualFX.prototype.spawn;
-        VisualFX.prototype.spawn=function(...args) {if(!diag.flags['no-particles'])return spawn.apply(this,args);};
-        const draw=EffectQuality.prototype.draw;
-        EffectQuality.prototype.draw=function(...args) {
-            if(diag.flags['no-light'] || diag.flags['no-motion']) {this.dirty=false;return;}
-            return diag.measure('Light.draw',()=>draw.apply(this,args));
-        };
-    }
-    attach(game) {
-        this.game=game;
-        const switches=document.getElementById('diag-switches');
-        for(const [key,label] of this.options) {
-            const row=document.createElement('label'),input=document.createElement('input');input.type='checkbox';
-            input.dataset.flag=key;input.addEventListener('change',()=>{
-                this.flags[key]=input.checked;document.body.classList.toggle('diag-'+key,input.checked);
-                if(key==='no-particles') {game.vfx.particles=[];game.vfx.ctx.clearRect(0,0,game.vfx.canvas.width,game.vfx.canvas.height);}
-                game.effects.dirty=true;game.effects.wake();
-                this.log('switch',{key,on:input.checked});this.resetWindow();
-            });row.appendChild(input);row.appendChild(document.createTextNode(label));switches.appendChild(row);
-        }
-        const on=(id,fn)=>document.getElementById(id).addEventListener('click',fn);
-        on('diag-open',()=>{this.panel.hidden=false;this.show();});
-        on('diag-close',()=>{this.panel.hidden=true;this.resetWindow();});
-        on('diag-record',()=>{this.runs.push(this.snapshot());if(this.runs.length>30)this.runs.shift();
-            document.getElementById('diag-feedback').textContent='Результат записан: '+this.runs.length;});
-        on('diag-baseline',()=>{
-            for(const [key] of this.options)document.body.classList.remove('diag-'+key);
-            this.flags={};switches.querySelectorAll('input').forEach(input=>input.checked=false);
-            game.effects.select.value='full';game.effects.setMode('full');this.resetWindow();this.log('baseline');
-        });
-        on('diag-load',()=>{
-            const level=Number(document.getElementById('diag-level').value);
-            if(!Number.isSafeInteger(level)||level<1)return;
-            game.lvl=level;game.start();this.resetWindow();this.log('load',{level});
-        });
-        on('diag-solve',()=>game.resolve());
-        on('diag-show',()=>this.presentReport());
-        on('diag-export',()=>{
-            const blob=new Blob([this.report()],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
-            const link=document.createElement('a');link.href=url;link.download='gimme-light-diagnostics-'+game.lvl+'.json';
-            document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
-        });
-        document.getElementById('diag-level').value=game.lvl;
-        game.effects.select.addEventListener('change',()=>{this.log('mode',{mode:game.effects.mode});this.resetWindow();});
-        for(const type of ['pointerdown','pointerup','pointercancel','click'])game.stage.addEventListener(type,e=>{
-            const delay=performance.now()-e.timeStamp;
-            this.log(type,{queueMs:delay>=0&&delay<60000?delay:null});
-        },true);
-        document.addEventListener('visibilitychange',()=>{this.last=0;this.log(document.hidden?'hidden':'visible');});
-        this.tick=this.tick.bind(this);requestAnimationFrame(this.tick);
-        this.resetWindow();
-    }
-    resetWindow() {this.frames=[];this.stats={};this.longTasks=0;this.windowStart=performance.now();this.last=0;}
-    tick(now) {
-        if(!document.hidden && this.panel.hidden) {
-            if(this.last) {this.frames.push(now-this.last);if(this.frames.length>600)this.frames.shift();}
-            this.last=now;
-        } else this.last=0;
-        if(now-this.lastUI>1500) {this.lastUI=now;if(!this.panel.hidden)this.show();}
-        requestAnimationFrame(this.tick);
-    }
-    snapshot() {
-        const frames=this.frames.slice().sort((a,b)=>a-b),sum=this.frames.reduce((a,b)=>a+b,0);
-        const g=this.game;
-        return {level:g.lvl,solved:!!g.completed,width:g.w,height:g.h,cellSize:g.vfx.cellSize,
-            lamps:g.cells.flat().filter(c=>c.type===TILES.BULB).length,lit:g.vfx.lights.size,
-            wrapX:g.spec.wrapX,wrapY:g.spec.wrapY,mode:g.effects.mode,tier:g.effects.tier,
-            switches:{...this.flags},seconds:(performance.now()-this.windowStart)/1000,
-            raf:{samples:frames.length,fps:sum?1000*frames.length/sum:null,p95:frames[Math.floor(frames.length*.95)]||0,max:frames[frames.length-1]||0},
-            longTasks:this.longTasks,methods:JSON.parse(JSON.stringify(this.stats)),events:this.events.slice()};
-    }
-    show() {
-        const v=this.snapshot();this.summary.textContent=`Уровень ${v.level} · ${v.width}×${v.height} · ламп ${v.lamps} / горит ${v.lit}
-Оценка rAF: ${v.raf.fps===null?'—':v.raf.fps.toFixed(1)} fps · p95 ${v.raf.p95.toFixed(0)} мс · max ${v.raf.max.toFixed(0)} мс
-Long Tasks: ${this.longTaskSupport?v.longTasks:'не поддерживаются браузером'}
-Замеры JS (включают вложенные вызовы):
-`+Object.entries(v.methods).map(([k,m])=>`${k}: last ${m.last.toFixed(1)}, max ${m.max.toFixed(1)} мс, вызовов ${m.count}`).join('\n');
-    }
-
-    setupAuto() {
-        const fit=()=>{
-            const viewport=window.visualViewport;
-            this.panel.style.top=((viewport?.offsetTop||0)+8)+'px';
-            this.panel.style.height=Math.max(80,(viewport?.height||window.innerHeight)-16)+'px';
-        };
-        window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);fit();
-        const on=(id,fn)=>document.getElementById(id).addEventListener('click',fn);
-        on('diag-start',()=>this.runAuto());
-        on('diag-close',()=>{document.body.classList.remove('diag-report-ready');this.game.effects.wake();});
-        on('diag-stop',()=>{this.stopRequested=true;});
-        on('diag-select',()=>{this.reportBox.focus();this.reportBox.select();this.reportBox.setSelectionRange(0,this.reportBox.value.length);});
-        on('diag-copy',async()=>{
-            let copied=false;
-            try {await navigator.clipboard.writeText(this.reportBox.value);copied=true;} catch(_) {
-                this.reportBox.focus();this.reportBox.select();
-                try {copied=document.execCommand('copy');} catch(_) {}
-            }
-            document.getElementById('diag-feedback').textContent=copied?'JSON скопирован.':'Нажмите «Выделить всё» и скопируйте текст через меню телефона.';
-        });
-        document.addEventListener('visibilitychange',()=>{
-            if(this.autoRunning && document.hidden) {
-                this.stopRequested=true;this.interruption='Page hidden during automatic test';
-            }
-        });
-        this.panel.hidden=false;
-    }
-    presentReport() {
-        document.body.classList.add('diag-report-ready');
-        cancelAnimationFrame(this.game.effects.frame);this.game.effects.frame=null;
-        this.panel.hidden=false;
-        document.getElementById('diag-result').hidden=false;
-        this.reportBox.hidden=false;this.reportBox.value=this.report();
-        document.getElementById('diag-feedback').textContent=`JSON готов: ${this.reportBox.value.length} символов, результатов ${this.runs.length}.`;
-        document.getElementById('diag-manual').open=false;
-        document.getElementById('diag-auto-intro').hidden=true;
-        document.getElementById('diag-content').scrollTop=0;
-    }
-    async waitAuto(ms) {
-        const until=performance.now()+ms;
-        do {
-            if(this.stopRequested) throw new Error(this.interruption||'Stopped by user');
-            await new Promise(resolve=>setTimeout(resolve,Math.min(100,Math.max(0,until-performance.now()))));
-        } while(performance.now()<until);
-    }
-    configureAuto(flags,mode='full') {
-        for(const [key] of this.options)document.body.classList.remove('diag-'+key);
-        this.flags={};for(const key of flags) {this.flags[key]=true;document.body.classList.add('diag-'+key);}
-        document.getElementById('diag-switches').querySelectorAll('input').forEach(input=>input.checked=!!this.flags[input.dataset.flag]);
-        this.game.effects.select.value=mode;this.game.effects.setMode(mode);
-    }
-    async autoDrag() {
-        const g=this.game,start=performance.now();
-        g.pan={id:-1,x:0,y:0,dx:0,dy:0,dragging:true};
-        g.createPanLayer();
-        const dragStart=performance.now(),distance=g.vfx.cellSize*2.4;
-        try {
-            await new Promise((resolve,reject)=>{
-                const step=now=>{
-                    if(this.stopRequested) {reject(new Error(this.interruption||'Stopped by user'));return;}
-                    const t=Math.min(1,(now-dragStart)/1000);
-                    const dx=g.spec.wrapX?distance*t:0,dy=g.spec.wrapY?distance*.65*t:0;
-                    g.pan.dx=dx;g.pan.dy=dy;g.paintPan(dx,dy);
-                    if(t<1)requestAnimationFrame(step);else resolve();
-                };requestAnimationFrame(step);
-            });
-            const dx=g.pan.dx,dy=g.pan.dy;g.pan=null;
-            g.settlePan(dx,dy);
-            while(g.panSettling)await this.waitAuto(100);
-            this.log('auto.dragComplete',{ms:performance.now()-start});
-            await this.waitAuto(1800);
-        } finally {g.cancelPan();}
-    }
-    autoCases() {
-        const jobs=[];
-        for(const [label,flags,mode] of [
-            ['baseline',[],'full'],['no filters',['no-filters'],'full'],['no field light',['no-light'],'full'],
-            ['no SVG',['no-svg'],'full'],['no wire flow',['no-flow'],'full'],['no animation',['no-motion'],'full'],['Light',[],'lite']
-        ])jobs.push({kind:'victory',level:5558,label,flags,mode});
-        for(const [label,flags] of [
-            ['baseline',[]],['no filters',['no-filters']],['no field light',['no-light']],['no SVG',['no-svg']],
-            ['no tap flush',['no-tap']],['no particles',['no-particles']]
-        ])jobs.push({kind:'rotation',level:5559,label,flags,mode:'full'});
-        for(const [label,flags] of [
-            ['baseline',[]],['no filters',['no-filters']],['no SVG',['no-svg']],['no clones',['no-clones']],
-            ['no rebuild',['no-commit']],['no cell entrance',['no-pop']],['2D',['no-layers']]
-        ])jobs.push({kind:'pan',level:5559,label,flags,mode:'full'});
-        jobs.push({kind:'pan',level:5559,label:'solved baseline',flags:[],mode:'full',solved:true});
-        jobs.push({kind:'pan',level:5559,label:'solved no filters',flags:['no-filters'],mode:'full',solved:true});
-        jobs.push({kind:'victory',level:5558,label:'baseline repeat',flags:[],mode:'full'});
-        return jobs;
-    }
-    async runAuto() {
-        if(this.autoRunning)return;
-        document.body.classList.remove('diag-report-ready');
-        this.autoRunning=true;this.stopRequested=false;this.interruption=null;this.runs=[];this.events=[];
-        this.autoStatus='running';this.autoStarted=performance.now();this.panel.hidden=true;
-        document.getElementById('diag-running').hidden=false;document.body.classList.add('diag-auto-running');
-        const g=this.game,play=g.audio.play,init=g.audio.init,haptic=g.haptic;
-        // Audio and vibration are excluded from rendering tests; no permission prompts.
-        g.audio.play=()=>{};g.audio.init=()=>{};g.haptic=()=>{};
-        const jobs=this.autoCases();
-        let current=null;
-        try {
-            for(let i=0;i<jobs.length;i++) {
-                current=jobs[i];
-                document.getElementById('diag-progress').textContent=`Тест ${i+1}/${jobs.length}: ${current.kind} · ${current.label}`;
-                this.configureAuto(current.flags,current.mode);this.resetWindow();this.events=[];
-                this.log('auto.case',current);g.lvl=current.level;g.start();g.suppressClickUntil=0;
-                if(current.kind==='victory'||current.solved)g.resolve();
-                await this.waitAuto(900);
-                const setup=this.snapshot();this.resetWindow();this.events=[];
-                if(current.kind==='victory')await this.waitAuto(4500);
-                else if(current.kind==='rotation') {
-                    const cells=g.cells.flat().filter(c=>c.type!==TILES.EMPTY);
-                    for(let n=0;n<6;n++) {g.rot(cells[(n*17+11)%cells.length],{});await this.waitAuto(600);}
-                    await this.waitAuto(1000);
-                } else await this.autoDrag();
-                const result=this.snapshot();result.test=current;result.setup=setup;this.runs.push(result);current=null;
-                await this.waitAuto(100);
-            }
-            this.autoStatus='completed';
-        } catch(error) {
-            this.autoStatus='interrupted';this.autoError=String(error.message||error);
-            const result=this.snapshot();result.test=current;result.incomplete=true;this.runs.push(result);
-        } finally {
-            g.cancelPan();g.audio.play=play;g.audio.init=init;g.haptic=haptic;
-            this.autoElapsed=performance.now()-this.autoStarted;this.autoRunning=false;
-            document.body.classList.remove('diag-auto-running');document.getElementById('diag-running').hidden=true;
-            this.configureAuto([],'full');this.presentReport();
-        }
-    }
-
-    report() {
-        return JSON.stringify({build:'gimme-light-v3-diagnostic-auto-2',autoStatus:this.autoStatus||'manual',autoElapsedMs:this.autoElapsed,autoError:this.autoError, syntheticActions:true,date:new Date().toISOString(),
-            userAgent:navigator.userAgent,dpr:window.devicePixelRatio,viewport:[window.innerWidth,window.innerHeight],
-            longTaskSupported:this.longTaskSupport,
-            note:'rAF intervals are not presented-frame/GPU timings. Method timings are inclusive. Panel-open frames are excluded. Tests never save progress. Automatic actions call the same game methods but do not measure physical touch delivery. Audio/vibration are excluded. Setup is recorded separately. Baseline repeat helps reveal time/temperature drift.',
-            runs:this.runs,current:this.snapshot()},null,2);
-    }
-}
-window.diagnostics=new GameDiagnostics();
-window.game=new Game();
-window.diagnostics.attach(window.game);
-window.diagnostics.setupAuto();
-
+window.game = new Game();
 </script>
 </body>
 </html>
