@@ -294,8 +294,8 @@
         .pan-copy .cell, .no-pop .cell { animation:none; }
         .pan-copy .wrap-edge { display:none; }
         .pan-copy .cell::after { display:none; }
-        /* A torus displays nine copies while dragging: freeze effects until snapping ends. */
-        #game-stage.panning * { animation-play-state:paused !important; }
+        /* Freeze effects in the visible field copies until snapping ends. */
+        #game-stage.panning *, .page-hidden * { animation-play-state:paused !important; }
         .panning .pan-copy .wire-path { stroke-dasharray:none !important; }
         .panning .pan-copy svg * { filter:none !important; transition:none !important; }
 
@@ -682,10 +682,16 @@ class VisualFX {
         this.lights = new Map();
         this.particles = [];
         this.loop = this.loop.bind(this);
-        requestAnimationFrame(this.loop);
+        this.frame=null;
+    }
+    wake() {
+        if(this.frame===null && this.particles.length && !document.hidden)
+            this.frame=requestAnimationFrame(this.loop);
     }
     resize(w, h, cs) {
-        this.canvas.width = w; this.canvas.height = h; this.cellSize = cs;
+        if(this.canvas.width!==w) this.canvas.width=w;
+        if(this.canvas.height!==h) this.canvas.height=h;
+        this.cellSize=cs;
     }
     spawn(cx, cy, type, color) {
         const cnt = type==='zap'?3: (type==='win'?20:5);
@@ -697,6 +703,7 @@ class VisualFX {
                 color:color||'#fff', size:1+Math.random()*2, type:type
             });
         }
+        this.wake();
     }
     updateLight(bulbs) {
         const active=new Set(bulbs);
@@ -714,6 +721,9 @@ class VisualFX {
                 this.glowLayer.appendChild(light);
                 this.lights.set(b,light);
             }
+            const signature=[b.x,b.y,this.cellSize,b.color,index,bulbs.length].join(':');
+            if(light.lightSignature===signature) return;
+            light.lightSignature=signature;
             const color=displayBulbColor(b.color);
             light.style.left=((b.x+0.5)*this.cellSize-radius)+'px';
             light.style.top=((b.y+0.5)*this.cellSize-radius)+'px';
@@ -740,6 +750,8 @@ class VisualFX {
         this.glowLayer.style.opacity=bulbs.length ? 1 : 0;
     }
     loop() {
+        this.frame=null;
+        if(document.hidden) return;
         this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
         for(let i=this.particles.length-1;i>=0;i--){
             let p=this.particles[i]; p.life-=p.decay; p.x+=p.vx; p.y+=p.vy;
@@ -750,7 +762,7 @@ class VisualFX {
                 this.ctx.beginPath(); this.ctx.arc(p.x,p.y,p.size,0,6.28); this.ctx.fill();
             }
         }
-        requestAnimationFrame(this.loop);
+        this.wake();
     }
 }
 
@@ -998,9 +1010,19 @@ class Game {
         this.initResetHandler();
         this.initPanHandler();
         const resize=()=>{
-            if(this.pan || this.panSettling) {this.resizePending=true;return;}
-            this.setupLayout();this.check(true);
+            if(this.resizeFrame!=null) return;
+            this.resizeFrame=requestAnimationFrame(()=>{
+                this.resizeFrame=null;
+                if(this.pan || this.panSettling) {this.resizePending=true;return;}
+                this.setupLayout();this.check(true);
+            });
         };
+        document.addEventListener?.('visibilitychange',()=>{
+            document.body.classList.toggle('page-hidden',document.hidden);
+            if(document.hidden) {
+                cancelAnimationFrame(this.vfx.frame);this.vfx.frame=null;
+            } else this.vfx.wake();
+        });
         window.addEventListener('resize',resize);
         window.visualViewport?.addEventListener('resize',resize);
 
@@ -1044,11 +1066,15 @@ class Game {
                 this.createPanLayer();
             }
             e.preventDefault();
-            this.paintPan(p.dx,p.dy);
+            if(this.dragFrame==null) this.dragFrame=requestAnimationFrame(()=>{
+                this.dragFrame=null;
+                if(this.pan?.dragging) this.paintPan(this.pan.dx,this.pan.dy);
+            });
         });
         const finish=e=>{
             const p=this.pan;
             if(!p || p.id!==e.pointerId) return;
+            cancelAnimationFrame(this.dragFrame);this.dragFrame=null;
             this.pan=null;
             if(this.stage.hasPointerCapture(e.pointerId)) this.stage.releasePointerCapture(e.pointerId);
             if(p.dragging) {
@@ -1079,8 +1105,8 @@ class Game {
         this.panLayer=document.createElement('div');
         this.panLayer.className='pan-layer';
         this.panCopies=[];
-        const xs=this.spec.wrapX ? [-1,0,1] : [0];
-        const ys=this.spec.wrapY ? [-1,0,1] : [0];
+        const xs=this.spec.wrapX ? [0,1] : [0];
+        const ys=this.spec.wrapY ? [0,1] : [0];
         for(const y of ys) for(const x of xs) {
             const copy=this.el.cloneNode(true);
             copy.removeAttribute('id');copy.className='pan-copy';
@@ -1097,8 +1123,9 @@ class Game {
         const wrap=(v,size)=>((v+size/2)%size+size)%size-size/2;
         const x=this.spec.wrapX ? wrap(dx,width) : 0;
         const y=this.spec.wrapY ? wrap(dy,height) : 0;
+        // Only the central tile and its visible neighbors are needed (4 on a torus).
         for(const copy of this.panCopies || [])
-            copy.el.style.transform=`translate3d(${x+copy.x*width}px,${y+copy.y*height}px,0)`;
+            copy.el.style.transform=`translate3d(${x+copy.x*(x>0?-width:width)}px,${y+copy.y*(y>0?-height:height)}px,0)`;
     }
 
     settlePan(dx,dy) {
@@ -1122,8 +1149,8 @@ class Game {
 
     shiftField(sx,sy) {
         sx=this.spec.wrapX ? sx : 0; sy=this.spec.wrapY ? sy : 0;
-        // Persist rotations before moving cells. Translating a wrapped graph preserves its solution.
-        this.saveProgress();
+        // Sync rotations before moving; write the final translated state only once.
+        this.saveProgress(false);
         const mod=(v,n)=>(v%n+n)%n;
         const previous=this.map;
         this.map=Array.from({length:this.h},(_,y)=>Array.from({length:this.w},(_,x)=>
@@ -1137,6 +1164,7 @@ class Game {
 
     cancelPan() {
         cancelAnimationFrame(this.panFrame);
+        cancelAnimationFrame(this.dragFrame);this.dragFrame=null;
         const p=this.pan;
         this.pan=null;
         if(p && this.stage.hasPointerCapture(p.id)) this.stage.releasePointerCapture(p.id);
@@ -1183,7 +1211,7 @@ class Game {
         header.addEventListener('touchend', cancelPress);
     }
 
-    saveProgress() {
+    saveProgress(persist=true) {
         if (this.cells && this.map) {
             for(let y=0;y<this.h;y++){
                 for(let x=0;x<this.w;x++){
@@ -1191,7 +1219,7 @@ class Game {
                 }
             }
         }
-        if(this.sandboxMode) return; // Sync in-memory rotations, but never touch normal progress.
+        if(!persist || this.sandboxMode) return; // Sync rotations without writing intermediate or sandbox states.
         const data = { generation: GENERATION_VERSION, v: this.SAVE_VERSION, lvl: this.lvl, map: this.map, spec: this.spec };
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     }
@@ -1290,6 +1318,7 @@ class Game {
     
     render() {
         this.el.innerHTML='';
+        this.paintState=new Map();
         this.cells=[];
         for(let y=0;y<this.h;y++){
             let r=[];
@@ -1425,7 +1454,12 @@ class Game {
         let lp = (globalDir - rot + 400) % 4;
         return this.getLocalGroup(type, lp);
     }
-    highlightPoweredLoops() {
+    wireNode(c,selector) {
+        c.wireCache ??= new Map();
+        if(!c.wireCache.has(selector)) c.wireCache.set(selector,c.el.querySelector(selector));
+        return c.wireCache.get(selector);
+    }
+    highlightPoweredLoops(paint=(node,name)=>node.classList.add(name)) {
         // Each electrically independent group is a vertex. An edge belongs to a
         // cycle exactly when it is not a graph bridge; this excludes attached branches
         // and even a connector between two separate loops.
@@ -1469,34 +1503,35 @@ class Game {
         for(const v of vertices.values()) if(!v.time) visit(v,-1);
         for(const e of edges) if(!e.bridge) for(const {c,group,port} of e.ends) {
             c.loopPorts|=1<<port;
-            c.el.querySelectorAll(`.wire-group-${group}.wire-${port}`).forEach(path=>path.classList.add('cycle-wire'));
+            c.cycleCache ??= new Map();
+            const key=group*4+port;
+            if(!c.cycleCache.has(key)) c.cycleCache.set(key,Array.from(c.el.querySelectorAll(`.wire-group-${group}.wire-${port}`)));
+            c.cycleCache.get(key).forEach(path=>paint(path,'cycle-wire'));
         }
     }
     check(silent) {
         let bulbs=0, lit=0, short=false;
         let litBulbsArr = []; 
+        const desired=new Map();
+        const paint=(node,name)=>{
+            if(!desired.has(node)) desired.set(node,new Set());
+            desired.get(node).add(name);
+        };
         this.cells.forEach(r=>r.forEach(c=>{
-            // Clear all status classes, including specific wire reversals
-            c.el.classList.remove('powered', 'short-circuit', 'flowing', 
-                'pg-0', 'pg-1', 'sc-0', 'sc-1',
-                'in-g0-0','in-g0-1','in-g0-2','in-g0-3','in-g1-0','in-g1-1','in-g1-2','in-g1-3'
-            );
-            // Clear all manually added reverse classes
-            c.el.querySelectorAll('.wire-path').forEach(wp => wp.classList.remove('reverse-flow','cycle-wire'));
-
-            c.visGroups = 0; c.par = null;
+            c.visGroups=0;c.shortGroups=0;c.par=null;
             if(c.type===TILES.BULB) bulbs++;
         }));
         let q = [];
         for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) {
             let c = this.cells[y][x];
             if(c.type === TILES.BATTERY) {
-                c.visGroups |= 1; c.el.classList.add('pg-0');
+                c.visGroups |= 1; paint(c.el,'pg-0');
                 q.push({c: c, dist: 0});
             }
         }
-        while(q.length > 0) {
-            let {c, dist} = q.shift();
+        let queueHead=0;
+        while(queueHead < q.length) {
+            let {c, dist} = q[queueHead++];
             let groups = [];
             if(c.visGroups & 1) groups.push(0);
             if(c.visGroups & 2) groups.push(1);
@@ -1512,9 +1547,9 @@ class Game {
                             if(nextGrp !== -1) {
                                 if(!(nextC.visGroups & (1 << nextGrp))) {
                                     nextC.visGroups |= (1 << nextGrp);
-                                    nextC.el.classList.add('pg-'+nextGrp);
+                                    paint(nextC.el,'pg-'+nextGrp);
                                     let localEntry = (entryDir - nextC.vRot + 400) % 4;
-                                    nextC.el.classList.add(`in-g${nextGrp}-${localEntry}`);
+                                    paint(nextC.el,`in-g${nextGrp}-${localEntry}`);
                                     
                                     // === LOGIC FIX: DIRECT JS REVERSAL ===
                                     // Instead of complex CSS rules, we directly apply 'reverse-flow' class
@@ -1531,14 +1566,14 @@ class Game {
                                         // Horz (Group 1): 3->1. Entry 1 is Reverse.
                                         if (nextGrp===1 && le===1) needRev=true;
                                         // Target specific wire group
-                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                        targetWire = this.wireNode(nextC,`.wire-group-${nextGrp}`);
                                     } 
                                     else if (t === TILES.D_CORNER) {
                                         // G0: 3->0. Entry 0 is Rev.
                                         if (nextGrp===0 && le===0) needRev=true;
                                         // G1: 2->1. Entry 1 is Rev.
                                         if (nextGrp===1 && le===1) needRev=true;
-                                        targetWire = nextC.el.querySelector(`.wire-group-${nextGrp}`);
+                                        targetWire = this.wireNode(nextC,`.wire-group-${nextGrp}`);
                                     }
                                     else if (t === TILES.CORNER) {
                                         // 0->1, 1->2, 2->3, 3->0
@@ -1549,23 +1584,23 @@ class Game {
                                         
                                         if (p1===0 && p2===3) { if(le===0) needRev=true; } // 3->0
                                         else { if(le===p2) needRev=true; } // p1->p2
-                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                        targetWire = this.wireNode(nextC,`.wire-group-0`);
                                     }
                                     else if (t === TILES.BULB) {
                                         // Center->2. Entry is 2. Always Rev.
                                         needRev = true; 
-                                        targetWire = nextC.el.querySelector(`.wire-group-0`);
+                                        targetWire = this.wireNode(nextC,`.wire-group-0`);
                                     }
                                     else {
                                         // Hubs (Line, Tee, Cross)
                                         // Center -> Out. Entry is at Out. Always Rev on THAT wire.
                                         // But hub has multiple wires. We need to find the specific one connected to 'le'.
-                                        targetWire = nextC.el.querySelector(`.wire-group-0.wire-${le}`);
+                                        targetWire = this.wireNode(nextC,`.wire-group-0.wire-${le}`);
                                         if (targetWire) needRev = true;
                                     }
 
                                     if (needRev && targetWire) {
-                                        targetWire.classList.add('reverse-flow');
+                                        paint(targetWire,'reverse-flow');
                                     }
 
                                     if(nextC.type===TILES.BULB) { lit++; litBulbsArr.push(nextC); }
@@ -1614,7 +1649,8 @@ class Game {
                     if(batsFound > 1) {
                         short = true;
                         pathCells.forEach(item => {
-                            item.c.el.classList.add('sc-' + item.grp);
+                            item.c.shortGroups|=1<<item.grp;
+                            paint(item.c.el,'sc-' + item.grp);
                             if(!silent && !this.pan && !this.panSettling && Math.random()>0.7)
                                 this.vfx.spawn((item.c.x+.5)*this.vfx.cellSize,(item.c.y+.5)*this.vfx.cellSize,'zap','#e74c3c');
                         });
@@ -1630,11 +1666,18 @@ class Game {
                 const otherGroup=other ? this.getGlobalGroup(other.type,other.vRot,(d+2)%4) : -1;
                 // A hint about the opposite contact, even before this cell is connected.
                 const on=otherGroup>=0 && (other.visGroups&(1<<otherGroup)) &&
-                    !other.el.classList.contains('sc-'+otherGroup);
-                mark.classList.toggle('edge-powered',!!on);
+                    !(other.shortGroups&(1<<otherGroup));
+                if(on) paint(mark,'edge-powered');
             });
         }));
-        this.highlightPoweredLoops();
+        this.highlightPoweredLoops(paint);
+        // Commit only changed classes; unchanged animations keep running untouched.
+        const previous=this.paintState || new Map();
+        for(const [node,names] of previous) for(const name of names)
+            if(!desired.get(node)?.has(name)) node.classList.remove(name);
+        for(const [node,names] of desired) for(const name of names)
+            if(!previous.get(node)?.has(name)) node.classList.add(name);
+        this.paintState=desired;
         this.vfx.updateLight(litBulbsArr);
         if(!silent){
             if(short && !this.short) {
