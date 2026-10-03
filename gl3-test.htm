@@ -399,6 +399,22 @@
         .diag-flat #game-stage svg {overflow:hidden !important;}
         .diag-no-hints .wrap-edge {display:none !important;}
         .diag-no-layers .pan-copy {will-change:auto !important;}
+
+        #diag-panel {top:8px;bottom:auto;left:8px;right:8px;height:calc(100vh - 16px);max-height:none;
+            display:flex;flex-direction:column;overflow:hidden;padding:0;box-sizing:border-box;}
+        #diag-header {display:flex;align-items:center;justify-content:space-between;gap:8px;
+            flex:0 0 auto;padding:6px 10px;background:#183426;}
+        #diag-header button {flex:0 0 auto;min-height:40px;}
+        #diag-content {flex:1 1 auto;min-height:0;overflow:auto;padding:10px;overscroll-behavior:contain;}
+        #diag-report {display:block;height:240px;height:40vh;min-height:100px;max-height:400px;
+            user-select:text;-webkit-user-select:text;white-space:pre;resize:vertical;}
+        #diag-running {position:fixed;top:0;left:0;right:0;z-index:999;background:#102319ed;
+            padding:5px;color:#fff;font:12px system-ui;display:flex;justify-content:space-between;align-items:center;}
+        .diag-auto-running #game-wrapper {pointer-events:none;}
+        .diag-report-ready #game-wrapper {visibility:hidden;}
+        .diag-report-ready #game-wrapper * {animation-play-state:paused !important;}
+        #diag-manual summary {cursor:pointer;padding:8px;}
+        @media (max-width:360px) {#diag-switches {grid-template-columns:1fr;}}
     </style>
 </head>
 <body>
@@ -442,18 +458,31 @@
     </div>
 
 
+    <div id="diag-running" hidden><span id="diag-progress"></span> <button id="diag-stop">Остановить</button></div>
     <section id="diag-panel" hidden aria-label="Диагностика производительности">
-      <strong>Диагностика · прогресс не сохраняется · автоматика выключена</strong>
-      <button id="diag-close">Закрыть</button>
-      <p>Меняйте один переключатель, закрывайте панель, повторяйте те же действия 10 секунд.
-      После теста нажмите «Записать результат». Перед следующим тестом — «Исходные эффекты».</p>
-      <div><label>Уровень <input id="diag-level" type="number" min="1" value="5558" style="width:95px"></label>
-      <button id="diag-load">Загрузить заново</button><button id="diag-solve">Resolve</button></div>
-      <div id="diag-switches"></div>
-      <div><button id="diag-baseline">Исходные эффекты</button><button id="diag-record">Записать результат</button>
-      <button id="diag-export">Скачать отчёт</button><button id="diag-show">Показать текст отчёта</button></div>
-      <p id="diag-feedback"></p><pre id="diag-summary"></pre>
-      <textarea id="diag-report" readonly hidden aria-label="Текст отчёта для копирования"></textarea>
+      <header id="diag-header"><strong>Диагностика</strong><button id="diag-close">Закрыть</button></header>
+      <div id="diag-content">
+        <div id="diag-auto-intro">
+          <p>Автотест проверит победное свечение, повороты и прокрутку на уровнях 5558 и 5559 с разными эффектами.
+          Нажмите «Начать» и оставьте страницу открытой. Во время теста не трогайте поле.
+          На медленном телефоне прогон может занять несколько минут. Прогресс игры не сохраняется.</p>
+          <button id="diag-start">Начать автоматическую диагностику</button>
+        </div>
+        <details id="diag-manual"><summary>Ручные тесты (необязательно)</summary>
+          <div><label>Уровень <input id="diag-level" type="number" min="1" value="5558" style="width:95px"></label>
+          <button id="diag-load">Загрузить заново</button><button id="diag-solve">Resolve</button></div>
+          <div id="diag-switches"></div>
+          <div><button id="diag-baseline">Исходные эффекты</button><button id="diag-record">Записать результат</button>
+          <button id="diag-export">Скачать отчёт</button><button id="diag-show">Показать текст отчёта</button></div>
+          <pre id="diag-summary"></pre>
+        </details>
+        <p id="diag-feedback" role="status"></p>
+        <div id="diag-result" hidden>
+          <p>JSON готов. Скопируйте его целиком и пришлите в чат. Если кнопка копирования не работает, нажмите «Выделить всё», затем выберите «Копировать» в меню телефона.</p>
+          <button id="diag-copy">Копировать JSON</button><button id="diag-select">Выделить всё</button>
+          <textarea id="diag-report" readonly spellcheck="false" aria-label="JSON отчёт для копирования"></textarea>
+        </div>
+      </div>
     </section>
 
 <script>
@@ -2081,10 +2110,10 @@ class GameDiagnostics {
             game.lvl=level;game.start();this.resetWindow();this.log('load',{level});
         });
         on('diag-solve',()=>game.resolve());
-        on('diag-show',()=>{this.reportBox.hidden=false;this.reportBox.value=this.report();this.reportBox.focus();this.reportBox.select();});
+        on('diag-show',()=>this.presentReport());
         on('diag-export',()=>{
-            const blob=new Blob([this.report()],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob);
-            const link=document.createElement('a');link.href=url;link.download='gimme-light-diagnostics-'+game.lvl+'.txt';
+            const blob=new Blob([this.report()],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob);
+            const link=document.createElement('a');link.href=url;link.download='gimme-light-diagnostics-'+game.lvl+'.json';
             document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
         });
         document.getElementById('diag-level').value=game.lvl;
@@ -2123,17 +2152,152 @@ Long Tasks: ${this.longTaskSupport?v.longTasks:'не поддерживаютс�
 Замеры JS (включают вложенные вызовы):
 `+Object.entries(v.methods).map(([k,m])=>`${k}: last ${m.last.toFixed(1)}, max ${m.max.toFixed(1)} мс, вызовов ${m.count}`).join('\n');
     }
+
+    setupAuto() {
+        const fit=()=>{
+            const viewport=window.visualViewport;
+            this.panel.style.top=((viewport?.offsetTop||0)+8)+'px';
+            this.panel.style.height=Math.max(80,(viewport?.height||window.innerHeight)-16)+'px';
+        };
+        window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);fit();
+        const on=(id,fn)=>document.getElementById(id).addEventListener('click',fn);
+        on('diag-start',()=>this.runAuto());
+        on('diag-close',()=>{document.body.classList.remove('diag-report-ready');this.game.effects.wake();});
+        on('diag-stop',()=>{this.stopRequested=true;});
+        on('diag-select',()=>{this.reportBox.focus();this.reportBox.select();this.reportBox.setSelectionRange(0,this.reportBox.value.length);});
+        on('diag-copy',async()=>{
+            let copied=false;
+            try {await navigator.clipboard.writeText(this.reportBox.value);copied=true;} catch(_) {
+                this.reportBox.focus();this.reportBox.select();
+                try {copied=document.execCommand('copy');} catch(_) {}
+            }
+            document.getElementById('diag-feedback').textContent=copied?'JSON скопирован.':'Нажмите «Выделить всё» и скопируйте текст через меню телефона.';
+        });
+        document.addEventListener('visibilitychange',()=>{
+            if(this.autoRunning && document.hidden) {
+                this.stopRequested=true;this.interruption='Page hidden during automatic test';
+            }
+        });
+        this.panel.hidden=false;
+    }
+    presentReport() {
+        document.body.classList.add('diag-report-ready');
+        cancelAnimationFrame(this.game.effects.frame);this.game.effects.frame=null;
+        this.panel.hidden=false;
+        document.getElementById('diag-result').hidden=false;
+        this.reportBox.hidden=false;this.reportBox.value=this.report();
+        document.getElementById('diag-feedback').textContent=`JSON готов: ${this.reportBox.value.length} символов, результатов ${this.runs.length}.`;
+        document.getElementById('diag-manual').open=false;
+        document.getElementById('diag-auto-intro').hidden=true;
+        document.getElementById('diag-content').scrollTop=0;
+    }
+    async waitAuto(ms) {
+        const until=performance.now()+ms;
+        do {
+            if(this.stopRequested) throw new Error(this.interruption||'Stopped by user');
+            await new Promise(resolve=>setTimeout(resolve,Math.min(100,Math.max(0,until-performance.now()))));
+        } while(performance.now()<until);
+    }
+    configureAuto(flags,mode='full') {
+        for(const [key] of this.options)document.body.classList.remove('diag-'+key);
+        this.flags={};for(const key of flags) {this.flags[key]=true;document.body.classList.add('diag-'+key);}
+        document.getElementById('diag-switches').querySelectorAll('input').forEach(input=>input.checked=!!this.flags[input.dataset.flag]);
+        this.game.effects.select.value=mode;this.game.effects.setMode(mode);
+    }
+    async autoDrag() {
+        const g=this.game,start=performance.now();
+        g.pan={id:-1,x:0,y:0,dx:0,dy:0,dragging:true};
+        g.createPanLayer();
+        const dragStart=performance.now(),distance=g.vfx.cellSize*2.4;
+        try {
+            await new Promise((resolve,reject)=>{
+                const step=now=>{
+                    if(this.stopRequested) {reject(new Error(this.interruption||'Stopped by user'));return;}
+                    const t=Math.min(1,(now-dragStart)/1000);
+                    const dx=g.spec.wrapX?distance*t:0,dy=g.spec.wrapY?distance*.65*t:0;
+                    g.pan.dx=dx;g.pan.dy=dy;g.paintPan(dx,dy);
+                    if(t<1)requestAnimationFrame(step);else resolve();
+                };requestAnimationFrame(step);
+            });
+            const dx=g.pan.dx,dy=g.pan.dy;g.pan=null;
+            g.settlePan(dx,dy);
+            while(g.panSettling)await this.waitAuto(100);
+            this.log('auto.dragComplete',{ms:performance.now()-start});
+            await this.waitAuto(1800);
+        } finally {g.cancelPan();}
+    }
+    autoCases() {
+        const jobs=[];
+        for(const [label,flags,mode] of [
+            ['baseline',[],'full'],['no filters',['no-filters'],'full'],['no field light',['no-light'],'full'],
+            ['no SVG',['no-svg'],'full'],['no wire flow',['no-flow'],'full'],['no animation',['no-motion'],'full'],['Light',[],'lite']
+        ])jobs.push({kind:'victory',level:5558,label,flags,mode});
+        for(const [label,flags] of [
+            ['baseline',[]],['no filters',['no-filters']],['no field light',['no-light']],['no SVG',['no-svg']],
+            ['no tap flush',['no-tap']],['no particles',['no-particles']]
+        ])jobs.push({kind:'rotation',level:5559,label,flags,mode:'full'});
+        for(const [label,flags] of [
+            ['baseline',[]],['no filters',['no-filters']],['no SVG',['no-svg']],['no clones',['no-clones']],
+            ['no rebuild',['no-commit']],['no cell entrance',['no-pop']],['2D',['no-layers']]
+        ])jobs.push({kind:'pan',level:5559,label,flags,mode:'full'});
+        jobs.push({kind:'pan',level:5559,label:'solved baseline',flags:[],mode:'full',solved:true});
+        jobs.push({kind:'pan',level:5559,label:'solved no filters',flags:['no-filters'],mode:'full',solved:true});
+        jobs.push({kind:'victory',level:5558,label:'baseline repeat',flags:[],mode:'full'});
+        return jobs;
+    }
+    async runAuto() {
+        if(this.autoRunning)return;
+        document.body.classList.remove('diag-report-ready');
+        this.autoRunning=true;this.stopRequested=false;this.interruption=null;this.runs=[];this.events=[];
+        this.autoStatus='running';this.autoStarted=performance.now();this.panel.hidden=true;
+        document.getElementById('diag-running').hidden=false;document.body.classList.add('diag-auto-running');
+        const g=this.game,play=g.audio.play,init=g.audio.init,haptic=g.haptic;
+        // Audio and vibration are excluded from rendering tests; no permission prompts.
+        g.audio.play=()=>{};g.audio.init=()=>{};g.haptic=()=>{};
+        const jobs=this.autoCases();
+        let current=null;
+        try {
+            for(let i=0;i<jobs.length;i++) {
+                current=jobs[i];
+                document.getElementById('diag-progress').textContent=`Тест ${i+1}/${jobs.length}: ${current.kind} · ${current.label}`;
+                this.configureAuto(current.flags,current.mode);this.resetWindow();this.events=[];
+                this.log('auto.case',current);g.lvl=current.level;g.start();g.suppressClickUntil=0;
+                if(current.kind==='victory'||current.solved)g.resolve();
+                await this.waitAuto(900);
+                const setup=this.snapshot();this.resetWindow();this.events=[];
+                if(current.kind==='victory')await this.waitAuto(4500);
+                else if(current.kind==='rotation') {
+                    const cells=g.cells.flat().filter(c=>c.type!==TILES.EMPTY);
+                    for(let n=0;n<6;n++) {g.rot(cells[(n*17+11)%cells.length],{});await this.waitAuto(600);}
+                    await this.waitAuto(1000);
+                } else await this.autoDrag();
+                const result=this.snapshot();result.test=current;result.setup=setup;this.runs.push(result);current=null;
+                await this.waitAuto(100);
+            }
+            this.autoStatus='completed';
+        } catch(error) {
+            this.autoStatus='interrupted';this.autoError=String(error.message||error);
+            const result=this.snapshot();result.test=current;result.incomplete=true;this.runs.push(result);
+        } finally {
+            g.cancelPan();g.audio.play=play;g.audio.init=init;g.haptic=haptic;
+            this.autoElapsed=performance.now()-this.autoStarted;this.autoRunning=false;
+            document.body.classList.remove('diag-auto-running');document.getElementById('diag-running').hidden=true;
+            this.configureAuto([],'full');this.presentReport();
+        }
+    }
+
     report() {
-        return JSON.stringify({build:'gimme-light-v3-diagnostic-1',date:new Date().toISOString(),
+        return JSON.stringify({build:'gimme-light-v3-diagnostic-auto-2',autoStatus:this.autoStatus||'manual',autoElapsedMs:this.autoElapsed,autoError:this.autoError, syntheticActions:true,date:new Date().toISOString(),
             userAgent:navigator.userAgent,dpr:window.devicePixelRatio,viewport:[window.innerWidth,window.innerHeight],
             longTaskSupported:this.longTaskSupport,
-            note:'rAF intervals are not presented-frame/GPU timings. Method timings are inclusive. Panel-open frames are excluded. Tests never save progress.',
+            note:'rAF intervals are not presented-frame/GPU timings. Method timings are inclusive. Panel-open frames are excluded. Tests never save progress. Automatic actions call the same game methods but do not measure physical touch delivery. Audio/vibration are excluded. Setup is recorded separately. Baseline repeat helps reveal time/temperature drift.',
             runs:this.runs,current:this.snapshot()},null,2);
     }
 }
 window.diagnostics=new GameDiagnostics();
 window.game=new Game();
 window.diagnostics.attach(window.game);
+window.diagnostics.setupAuto();
 
 </script>
 </body>
